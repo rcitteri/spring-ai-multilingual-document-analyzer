@@ -238,42 +238,25 @@ public class DocumentAnalyzerService {
 								}
 							}
 
-							// Process documents one at a time to handle EOF errors gracefully
-							// Each document is tried individually, with fallback to truncated content
-							int successCount = 0;
-							for (int i = 0; i < documents.size(); i++) {
-								Document doc = documents.get(i);
+							// Process documents in smaller batches to avoid embedding API EOF errors
+							// This prevents overwhelming the embedding model with too many documents at
+							// once
+							int batchSize = 5; // Small batch size to avoid EOF errors
+							for (int i = 0; i < documents.size(); i += batchSize) {
+								int end = Math.min(i + batchSize, documents.size());
+								List<Document> batch = documents.subList(i, end);
 								try {
-									this.vectorStore.accept(List.of(doc));
-									successCount++;
-									logger.debug("Embedded document {}/{}", i + 1, documents.size());
+									this.vectorStore.accept(batch);
+									logger.debug("Embedded batch {}/{} ({} documents)",
+											(i / batchSize) + 1,
+											(int) Math.ceil((double) documents.size() / batchSize),
+											batch.size());
 								} catch (Exception e) {
-									// If embedding fails, try with truncated content
-									String content = doc.getText();
-									if (content != null && content.length() > 2000) {
-										logger.warn(
-												"Document {} embedding failed, retrying with truncated content (original: {} chars)",
-												i + 1, content.length());
-										try {
-											// Truncate to ~2000 chars (safe for most embedding models)
-											String truncated = content.substring(0, 2000) + "...";
-											Document truncatedDoc = new Document(truncated);
-											truncatedDoc.getMetadata().putAll(doc.getMetadata());
-											this.vectorStore.accept(List.of(truncatedDoc));
-											successCount++;
-											logger.info("Successfully embedded truncated document {}", i + 1);
-										} catch (Exception retryEx) {
-											logger.error(
-													"Failed to embed document {} even after truncation, skipping: {}",
-													i + 1, retryEx.getMessage());
-										}
-									} else {
-										logger.error("Failed to embed document {} (content: {} chars), skipping: {}",
-												i + 1, content != null ? content.length() : 0, e.getMessage());
-									}
+									logger.error("Failed to embed batch {}: {}",
+											(i / batchSize) + 1, e.getMessage());
+									throw e;
 								}
 							}
-							logger.info("Embedded {}/{} documents successfully", successCount, documents.size());
 							totalChunks += documents.size();
 							processedFiles++;
 

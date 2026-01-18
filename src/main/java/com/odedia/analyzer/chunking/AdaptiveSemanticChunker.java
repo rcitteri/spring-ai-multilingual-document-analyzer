@@ -309,33 +309,6 @@ public class AdaptiveSemanticChunker {
     }
 
     /**
-     * Sanitizes text content for embedding by removing problematic characters
-     * that can cause embedding API failures (EOF errors).
-     * 
-     * @param text The text to sanitize
-     * @return Sanitized text safe for embedding
-     */
-    private static String sanitizeForEmbedding(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-
-        // Remove control characters (except newline, tab, carriage return)
-        String sanitized = text.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", " ");
-
-        // Remove null bytes and other problematic Unicode characters
-        sanitized = sanitized.replace("\u0000", "");
-
-        // Normalize excessive whitespace
-        sanitized = sanitized.replaceAll("\\s{3,}", "  ");
-
-        // Remove any remaining non-printable characters
-        sanitized = sanitized.replaceAll("[\\p{Cc}&&[^\\n\\r\\t]]", "");
-
-        return sanitized.trim();
-    }
-
-    /**
      * Creates and adds a chunk document to the list with full metadata.
      * 
      * IMPORTANT: We embed the metadata directly in the content because
@@ -348,18 +321,10 @@ public class AdaptiveSemanticChunker {
             return;
         }
 
-        // Sanitize content to remove problematic characters that can cause embedding
-        // failures
-        String sanitized = sanitizeForEmbedding(content.trim());
-        if (sanitized.isEmpty()) {
-            logger.warn("Chunk {} from {} became empty after sanitization, skipping", index, filename);
-            return;
-        }
-
         // Prepend source information to content so LLM can cite correctly
         String contentWithSource = String.format(
                 "[SOURCE: %s, PAGE: %d]\n\n%s",
-                filename, pageNumber, sanitized);
+                filename, pageNumber, content.trim());
 
         Document doc = new Document(contentWithSource);
         doc.getMetadata().put("filename", filename);
