@@ -14,7 +14,8 @@ import java.util.List;
 
 /**
  * A ChatMemory implementation that uses token-based windowing with automatic
- * summarization of older messages to preserve context while managing token limits.
+ * summarization of older messages to preserve context while managing token
+ * limits.
  *
  * Strategy:
  * 1. Maintains a token budget for conversation history
@@ -30,15 +31,15 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
     private final MessageSummarizationService summarizationService;
     private final int maxTokens;
     private final int recentMessageCount;
-    private final int approximateTokensPerChar = 4; // Conservative estimate: 1 token ≈ 4 characters
 
     /**
      * Creates a new SummarizingTokenWindowChatMemory.
      *
      * @param chatMemoryRepository The repository for persisting messages
      * @param summarizationService Service for creating message summaries
-     * @param maxTokens Maximum tokens to maintain in memory window
-     * @param recentMessageCount Number of recent messages to always keep in full (not summarized)
+     * @param maxTokens            Maximum tokens to maintain in memory window
+     * @param recentMessageCount   Number of recent messages to always keep in full
+     *                             (not summarized)
      */
     public SummarizingTokenWindowChatMemory(
             ChatMemoryRepository chatMemoryRepository,
@@ -90,9 +91,9 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
      * 1. Calculate total tokens in all messages
      * 2. If within limit, return all messages
      * 3. If over limit:
-     *    a. Keep the most recent N messages in full
-     *    b. Summarize older messages into a single context message (with caching)
-     *    c. Return [summary] + [recent messages]
+     * a. Keep the most recent N messages in full
+     * b. Summarize older messages into a single context message (with caching)
+     * c. Return [summary] + [recent messages]
      */
     private List<Message> applyTokenWindowWithSummarization(String conversationId, List<Message> messages) {
         if (messages.isEmpty()) {
@@ -144,15 +145,41 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
 
     /**
      * Estimates token count for a list of messages.
-     * Uses a conservative approximation: 1 token ≈ 4 characters.
+     * Uses language-aware approximation:
+     * - English: 1 token ≈ 4 characters
+     * - Hebrew: 1 token ≈ 2-3 characters (Hebrew tokens are denser)
      */
     private int estimateTokenCount(List<Message> messages) {
-        int totalChars = messages.stream()
-                .map(Message::getText)
-                .mapToInt(content -> content != null ? content.length() : 0)
-                .sum();
+        int totalTokens = 0;
+        for (Message message : messages) {
+            String content = message.getText();
+            if (content != null) {
+                totalTokens += estimateTokensForText(content);
+            }
+        }
+        return totalTokens;
+    }
 
-        return totalChars / approximateTokensPerChar;
+    /**
+     * Estimate tokens for a single text, using language-aware heuristics.
+     */
+    private int estimateTokensForText(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+
+        // Count Hebrew characters to determine language mix
+        long hebrewChars = text.chars()
+                .filter(c -> (c >= 0x0590 && c <= 0x05FF)) // Hebrew block
+                .count();
+
+        double hebrewRatio = (double) hebrewChars / text.length();
+
+        // Blend token estimation based on language ratio
+        // Hebrew: ~2.5 chars/token, English: ~4 chars/token
+        double avgCharsPerToken = (hebrewRatio * 2.5) + ((1 - hebrewRatio) * 4.0);
+
+        return (int) Math.ceil(text.length() / avgCharsPerToken);
     }
 
     /**
@@ -220,8 +247,7 @@ public class SummarizingTokenWindowChatMemory implements ChatMemory {
                     chatMemoryRepository,
                     summarizationService,
                     maxTokens,
-                    recentMessageCount
-            );
+                    recentMessageCount);
         }
     }
 
