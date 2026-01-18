@@ -443,7 +443,6 @@ public class DocumentAnalyzerService {
 	public Flux<String> queryPdf(@RequestBody String question,
 			@RequestHeader("X-Conversation-ID") String conversationId,
 			@RequestHeader("X-Chat-Language") String chatLanguage,
-			@RequestHeader(value = "X-Filter-Language", defaultValue = "all") String filterLanguage,
 			@RequestHeader(value = "X-Enable-CoT", defaultValue = "false") boolean enableCoT,
 			@RequestHeader(value = "X-Enable-Query-Rewrite", defaultValue = "true") boolean enableQueryRewrite,
 			@Value("${app.ai.topk}") Integer topK,
@@ -505,24 +504,15 @@ public class DocumentAnalyzerService {
 				.template(selectedPromptTemplate)
 				.build();
 
-		// Build search request with rewritten query and optional language filtering
+		// Build search request - search all documents (no language filtering)
 		SearchRequest.Builder searchRequestBuilder = SearchRequest.builder()
 				.query(searchQuery) // Use rewritten query for better retrieval
 				.topK(topK);
-
-		if (!"all".equals(filterLanguage)) {
-			// Filter by language metadata
-			searchRequestBuilder.filterExpression("language == '" + filterLanguage + "'");
-			logger.info("Filtering documents by language: {}", filterLanguage);
-		} else {
-			logger.info("Searching all documents (no language filter)");
-		}
 
 		logger.info("=== RAG Query Debug ===");
 		logger.info("Original question: {}", question);
 		logger.info("Search query (after rewrite): {}", searchQuery);
 		logger.info("TopK: {}", topK);
-		logger.info("Filter language: {}", filterLanguage);
 		logger.info("System text: {}", systemText);
 
 		// Debug: Log retrieved chunks BEFORE sending to LLM

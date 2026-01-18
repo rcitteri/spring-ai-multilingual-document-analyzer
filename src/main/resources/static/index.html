@@ -2310,14 +2310,12 @@
 				chatMessages.scrollTop = chatMessages.scrollHeight;
 				chatInput.value = "";
 
-				const filterByLanguage = document.getElementById("filterByLanguage").checked;
 				const enableCoT = document.getElementById("enableChainOfThought").checked;
 				const enableQueryRewrite = document.getElementById("enableQueryRewrite").checked;
 				const headers = {
 					"Content-Type": "text/plain",
 					"X-Chat-Language": userLang,
 					"X-Conversation-ID": activeConversationId,
-					"X-Filter-Language": filterByLanguage ? userLang : "all",
 					"X-Enable-CoT": enableCoT,
 					"X-Enable-Query-Rewrite": enableQueryRewrite
 				};
@@ -2490,7 +2488,6 @@
 				logoutConfirmTitle: "Logout",
 				logoutConfirmMessage: "Are you sure you want to log out?",
 				logoutFailed: "Failed to log out.",
-				filterByLanguage: "Search only in UI language documents",
 				enableChainOfThought: "Apply Chain of Thought",
 				enableQueryRewrite: "Enable query rewrite",
 				page: "Page",
@@ -2530,7 +2527,6 @@
 				logoutConfirmTitle: "התנתקות",
 				logoutConfirmMessage: "האם אתה בטוח שברצונך להתנתק?",
 				logoutFailed: "נכשל בניסיון להתנתק.",
-				filterByLanguage: "חפש רק במסמכים בשפת הממשק",
 				enableChainOfThought: "ניתוח מעמיק",
 				enableQueryRewrite: "אפשר שכתוב שאילתה",
 				page: "עמוד",
@@ -2590,7 +2586,6 @@
 			document.getElementById("processingText").textContent = t.processing;
 			document.getElementById("filenameHeader").textContent = t.headerFilename;
 			document.getElementById("languageHeader").textContent = t.headerLang;
-			document.getElementById("filterByLanguageLabel").textContent = t.filterByLanguage;
 			document.getElementById("chainOfThoughtLabel").textContent = t.enableChainOfThought;
 			document.getElementById("queryRewriteLabel").textContent = t.enableQueryRewrite;
 
@@ -2869,11 +2864,6 @@
 				</div>
 
 				<div class="mt-3 mb-2 space-y-2">
-					<label class="flex items-center gap-2 text-sm cursor-pointer">
-						<input type="checkbox" id="filterByLanguage" class="w-4 h-4 cursor-pointer">
-						<span id="filterByLanguageLabel">חפש רק במסמכים בשפת הממשק</span>
-					</label>
-
 					<label class="flex items-center gap-2 text-sm cursor-pointer" title="Show AI reasoning process">
 						<input type="checkbox" id="enableChainOfThought" class="w-4 h-4 cursor-pointer">
 						<span id="chainOfThoughtLabel">הצג תהליך חשיבה</span>
