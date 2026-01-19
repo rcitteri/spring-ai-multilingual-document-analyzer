@@ -12,6 +12,6 @@ applications:
     SPRING_AI_MODEL_CHAT: openai
   services:
     - gpt-oss-1025
-    - nomic-embed-1025
+    - nomic-embed-v2
     - docs-vectordb
     - sso

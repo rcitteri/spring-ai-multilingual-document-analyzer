@@ -75,6 +75,9 @@ public class HebrewEnglishPdfPerPageExtractor {
 					String rawText = stripper.getText(document);
 					String cleanedPage = cleanPageText(rawText);
 
+					// Apply text cleaning to remove problematic content before embedding
+					cleanedPage = com.odedia.analyzer.utils.TextCleaningUtils.cleanExtractedText(cleanedPage);
+
 					if (!cleanedPage.isEmpty()) {
 						pages.add(cleanedPage);
 					}
@@ -124,7 +127,8 @@ public class HebrewEnglishPdfPerPageExtractor {
 	}
 
 	/**
-	 * Detects the dominant language in the text by counting Hebrew vs English characters.
+	 * Detects the dominant language in the text by counting Hebrew vs English
+	 * characters.
 	 *
 	 * @param text The text to analyze
 	 * @return "he" for Hebrew, "en" for English

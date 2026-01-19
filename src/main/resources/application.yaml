@@ -56,7 +56,7 @@ spring:
         distance-type: COSINE_DISTANCE
         dimensions: {VECTOR_DIMENSIONS:768}
         batching-strategy: TOKEN_COUNT
-        max-document-batch-size: 10000
+        max-document-batch-size: 50  # Reasonable batch size
   sql:
     init:
       mode: always
