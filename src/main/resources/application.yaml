@@ -99,64 +99,54 @@ app:
     # Standard prompt template (without Chain-of-Thought)
     # MUST include <query> and <question_answer_context> placeholders per Spring AI requirements
     promptTemplate: |
-      Context information from uploaded documents (each document chunk includes metadata with filename and page_number):
+      Context information from uploaded documents:
       ---------------------
       <question_answer_context>
       ---------------------
 
       Question: <query>
 
-      CRITICAL CITATION RULES:
-      - For EVERY piece of information, cite the source IMMEDIATELY after in this EXACT format: (Source: filename_from_metadata, Page page_number_from_metadata)
-      - DO NOT invent filenames or page numbers - extract them from the document metadata shown above
-      - Each context chunk above has metadata that looks like: {{filename: "actual_file.pdf", page_number: 42, ...}}
-      - Use those EXACT values in your citations
-      - Example: If metadata shows filename: "report.pdf" and page_number: 15, cite as: (Source: report.pdf, Page 15)
+      CITATION RULES:
+      - Each context chunk above starts with [SOURCE: filename, PAGE: N]
+      - For EVERY piece of information you use, cite the source
+      - Use the EXACT filename and page number from the [SOURCE] tag - do NOT make them up
+      - Citation format depends on the language of your answer:
+        - If answering in Hebrew: (מקור: filename, עמוד N)
+        - If answering in English: (Source: filename, Page N)
+      - Example: If you see [SOURCE: report.pdf, PAGE: 5] and answering in English, cite as: (Source: report.pdf, Page 5)
+      - Example: If you see [SOURCE: תנאי ביטוח.pdf, PAGE: 2] and answering in Hebrew, cite as: (מקור: תנאי ביטוח.pdf, עמוד 2)
 
       Other Instructions:
       - Answer using ONLY the context above
-      - The context was automatically retrieved - do NOT ask for documents
       - Be direct and natural in your response
       - If the context doesn't contain the answer, say you don't have that information
       - Answer in the same language as the question
 
+
     # Chain-of-Thought prompt template (when enabled by user)
     # MUST include <query> and <question_answer_context> placeholders per Spring AI requirements
     promptTemplateWithCoT: |
-      Context information from uploaded documents (each document chunk includes metadata with filename and page_number):
+      Context information from uploaded documents:
       ---------------------
       <question_answer_context>
       ---------------------
 
       Question: <query>
 
-      Think step-by-step before answering:
-
-      **THINKING:**
-      1. What is the user asking?
-      2. What relevant information is in the context above?
-      3. Confidence level:
-         - HIGH: Clear evidence in multiple parts
-         - MEDIUM: Partial information
-         - LOW: Requires inference
-         - NONE: No relevant information
+      Before answering, assess the information:
+      **THINKING:** Briefly identify what specific facts/numbers in the context answer the question.
+      **CONFIDENCE:** [HIGH/MEDIUM/LOW/NONE]
 
       **ANSWER:**
-      [CONFIDENCE: HIGH/MEDIUM/LOW/NONE]
+      Provide a SPECIFIC answer with exact details (numbers, amounts, names) from the context.
+      Do NOT give generic explanations - extract and cite the specific information.
 
-      [Your answer here - cite sources]
+      CITATION RULES:
+      - Each context chunk starts with [SOURCE: filename, PAGE: N]
+      - Cite every fact: (מקור: filename, עמוד N) for Hebrew, (Source: filename, Page N) for English
+      - Extract the EXACT page number from each chunk's [SOURCE] tag
 
-      CRITICAL CITATION RULES:
-      - For EVERY piece of information, cite the source IMMEDIATELY after in this EXACT format: (Source: filename_from_metadata, Page page_number_from_metadata)
-      - DO NOT invent filenames or page numbers - extract them from the document metadata shown above
-      - Each context chunk above has metadata that looks like: {{filename: "actual_file.pdf", page_number: 42, ...}}
-      - Use those EXACT values in your citations
-      - Example: If metadata shows filename: "report.pdf" and page_number: 15, cite as: (Source: report.pdf, Page 15)
-
-      Other Instructions:
-      - Answer using ONLY the context above
-      - Do NOT ask for documents - they are already provided
-      - Answer in the same language as the question
+      Answer in the same language as the question.
 
     systemText: |
       You are a helpful AI assistant for a document question-answering system.

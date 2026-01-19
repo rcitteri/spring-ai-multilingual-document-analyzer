@@ -11,7 +11,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Adaptive semantic chunker that intelligently splits documents based on structure
+ * Adaptive semantic chunker that intelligently splits documents based on
+ * structure
  * while maintaining context through overlapping chunks.
  *
  * Features:
@@ -24,16 +25,16 @@ public class AdaptiveSemanticChunker {
 
     private static final Logger logger = LoggerFactory.getLogger(AdaptiveSemanticChunker.class);
 
-    private static final int MIN_CHUNK_SIZE = 256;      // Don't create tiny chunks
-    private static final int TARGET_CHUNK_SIZE = 384;   // Ideal size: ~3-4 paragraphs
-    private static final int MAX_CHUNK_SIZE = 512;      // Hard upper limit (nomic-embed-text safe limit)
-    private static final int OVERLAP_SIZE = 100;        // Context overlap between chunks
-    private static final int CHARS_PER_TOKEN = 4;       // Approximation for token counting
+    private static final int MIN_CHUNK_SIZE = 256; // Don't create tiny chunks
+    private static final int TARGET_CHUNK_SIZE = 384; // Ideal size: ~3-4 paragraphs
+    private static final int MAX_CHUNK_SIZE = 512; // Hard upper limit (nomic-embed-text safe limit)
+    private static final int OVERLAP_SIZE = 100; // Context overlap between chunks
+    private static final int CHARS_PER_TOKEN = 4; // Approximation for token counting
 
     /**
      * Chunks a PDF document adaptively based on semantic structure.
      *
-     * @param pdfData The extracted PDF data with pages and language
+     * @param pdfData  The extracted PDF data with pages and language
      * @param filename The original filename for metadata
      * @return List of chunked documents with metadata
      */
@@ -47,7 +48,7 @@ public class AdaptiveSemanticChunker {
         int avgCharsPerPage = fullText.length() / Math.max(totalPages, 1);
 
         logger.info("Chunking document '{}' ({}) with {} pages, {} chars (avg {} chars/page)",
-                    filename, language, totalPages, fullText.length(), avgCharsPerPage);
+                filename, language, totalPages, fullText.length(), avgCharsPerPage);
 
         // Detect major sections in the document
         List<Section> sections = detectSections(fullText, language);
@@ -84,7 +85,7 @@ public class AdaptiveSemanticChunker {
 
                 // Check if we should combine with previous overlap or make standalone
                 if (previousOverlap.length() > 0 &&
-                    estimateTokens(previousOverlap) + sectionTokens <= MAX_CHUNK_SIZE) {
+                        estimateTokens(previousOverlap) + sectionTokens <= MAX_CHUNK_SIZE) {
                     // Include overlap and emit
                     String chunkContent = previousOverlap + section.content;
                     int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
@@ -141,8 +142,8 @@ public class AdaptiveSemanticChunker {
         }
 
         logger.info("Created {} chunks from document '{}' (avg {} tokens per chunk)",
-                    chunks.size(), filename,
-                    chunks.isEmpty() ? 0 : fullText.length() / CHARS_PER_TOKEN / chunks.size());
+                chunks.size(), filename,
+                chunks.isEmpty() ? 0 : fullText.length() / CHARS_PER_TOKEN / chunks.size());
 
         return chunks;
     }
@@ -166,7 +167,8 @@ public class AdaptiveSemanticChunker {
 
         for (String part : parts) {
             String trimmed = part.trim();
-            if (trimmed.isEmpty()) continue;
+            if (trimmed.isEmpty())
+                continue;
 
             // Check if this looks like a header
             if (isHeader(trimmed, language)) {
@@ -205,7 +207,7 @@ public class AdaptiveSemanticChunker {
 
         // Check various header patterns:
         // 1. Ends with colon
-        if (firstLine.endsWith(":") || firstLine.endsWith(":\u200f")) {  // \u200f is RTL mark
+        if (firstLine.endsWith(":") || firstLine.endsWith(":\u200f")) { // \u200f is RTL mark
             return true;
         }
 
@@ -221,7 +223,7 @@ public class AdaptiveSemanticChunker {
 
         // 4. All uppercase (for English)
         if ("en".equals(language) && firstLine.equals(firstLine.toUpperCase()) &&
-            firstLine.length() < 100) {
+                firstLine.length() < 100) {
             return true;
         }
 
@@ -240,7 +242,8 @@ public class AdaptiveSemanticChunker {
 
         for (String para : paragraphs) {
             String trimmed = para.trim();
-            if (trimmed.isEmpty()) continue;
+            if (trimmed.isEmpty())
+                continue;
 
             int currentTokens = estimateTokens(current.toString());
             int paraTokens = estimateTokens(trimmed);
@@ -300,29 +303,74 @@ public class AdaptiveSemanticChunker {
      * Estimates token count from character count.
      */
     private static int estimateTokens(String text) {
-        if (text == null || text.isEmpty()) return 0;
+        if (text == null || text.isEmpty())
+            return 0;
         return text.length() / CHARS_PER_TOKEN;
     }
 
     /**
+     * Sanitizes text content for embedding by removing problematic characters
+     * that can cause embedding API failures (EOF errors).
+     * 
+     * @param text The text to sanitize
+     * @return Sanitized text safe for embedding
+     */
+    private static String sanitizeForEmbedding(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
+        // Remove control characters (except newline, tab, carriage return)
+        String sanitized = text.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", " ");
+
+        // Remove null bytes and other problematic Unicode characters
+        sanitized = sanitized.replace("\u0000", "");
+
+        // Normalize excessive whitespace
+        sanitized = sanitized.replaceAll("\\s{3,}", "  ");
+
+        // Remove any remaining non-printable characters
+        sanitized = sanitized.replaceAll("[\\p{Cc}&&[^\\n\\r\\t]]", "");
+
+        return sanitized.trim();
+    }
+
+    /**
      * Creates and adds a chunk document to the list with full metadata.
+     * 
+     * IMPORTANT: We embed the metadata directly in the content because
+     * QuestionAnswerAdvisor only passes content to the LLM, not metadata.
+     * This ensures the LLM can cite actual source files and page numbers.
      */
     private static void emitChunk(List<Document> chunks, String content, String filename,
-                                  String language, int index, int pageNumber) {
+            String language, int index, int pageNumber) {
         if (content == null || content.trim().isEmpty()) {
             return;
         }
 
-        Document doc = new Document(content.trim());
+        // Sanitize content to remove problematic characters that can cause embedding
+        // failures
+        String sanitized = sanitizeForEmbedding(content.trim());
+        if (sanitized.isEmpty()) {
+            logger.warn("Chunk {} from {} became empty after sanitization, skipping", index, filename);
+            return;
+        }
+
+        // Prepend source information to content so LLM can cite correctly
+        String contentWithSource = String.format(
+                "[SOURCE: %s, PAGE: %d]\n\n%s",
+                filename, pageNumber, sanitized);
+
+        Document doc = new Document(contentWithSource);
         doc.getMetadata().put("filename", filename);
         doc.getMetadata().put("language", language);
         doc.getMetadata().put("chunk_index", index);
-        doc.getMetadata().put("chunk_size_tokens", estimateTokens(content));
+        doc.getMetadata().put("chunk_size_tokens", estimateTokens(contentWithSource));
         doc.getMetadata().put("page_number", pageNumber);
 
         chunks.add(doc);
 
-        logger.debug("Emitted chunk {}: {} tokens (page {})", index, estimateTokens(content), pageNumber);
+        logger.debug("Emitted chunk {}: {} tokens (page {})", index, estimateTokens(contentWithSource), pageNumber);
     }
 
     /**

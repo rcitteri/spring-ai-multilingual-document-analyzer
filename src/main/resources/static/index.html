@@ -1,1042 +1,1395 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>סייען המסמכים</title>
-<link rel="icon" href="images/Icon.png">
-<link href="css/tailwind.min.css" rel="stylesheet">
-<script src="js/htmx.org@2.0.2"></script>
-<script src="js/marked.min.js"></script>
-<style>
-  /* Title row with icon that mirrors in RTL */
-  .title-row { display: flex; align-items: center; gap: 0.6rem; }
-  html[dir="rtl"] .title-row { flex-direction: row-reverse; }
-  .title-row img { width: 28px; height: 28px; display: block; transform: translateY(-5px); }
-  .title-row .title-icon { order: 0; }
-  .title-row h1 { order: 1; margin: 0; margin-top: 2px; line-height: 1; display: inline-block; }
-  /* No RTL-specific order overrides; row-reverse handles placement */
-	html, body           { height: 100%; min-height: 0; }
-	.flex-container      { height: 100%; min-height: 0; }   /* new */
-
-	.pdf-table-wrapper {
-	  /* Removed scrolling - using pagination instead */
-	}
-	.delete-conv-btn { color: #9ca3af; font-size: 0.9rem; }
-	.chat-list-item:hover .delete-conv-btn { color: #ef4444; }
-
-	/* keep the header visible while scrolling */
-	#pdfTable thead th {
-	  position: sticky;
-	  top: 0;
-	  background: #f3f4f6;     /* same colour you use already */
-	  z-index: 1;
-	}
-
-	.chat-list-divider {
-	  margin: 1.5rem 0; /* Adds vertical margin */
-	  border: 0;
-	  border-top: 1px solid #e5e7eb; /* Light gray divider */
-	  background: linear-gradient(to right, transparent, #e5e7eb, transparent); /* Subtle gradient effect */
-	}
-	
-	/* Delete confirm popover */
-	.delete-popover {
-	  position: fixed;
-	  z-index: 100001;
-	  min-width: 220px;
-	  max-width: 320px;
-	  border-radius: 0.5rem;
-	  box-shadow: 0 10px 30px rgba(2,6,23,0.2);
-	  background: white;
-	  padding: 0.5rem;
-	  font-size: 0.95rem;
-	  transform-origin: top right;
-	  animation: popIn 120ms ease-out;
-	}
-	/* Mobile: center modal so buttons are visible */
-	@media (max-width: 640px) {
-	  .delete-popover { left: 50% !important; top: 50% !important; transform: translate(-50%, -50%) !important; width: min(90vw, 360px); max-width: 90vw; }
-	  .delete-popover::before { display: none; }
-	}
-
-	.delete-popover:focus { outline: none; }
-
-	/* little arrow */
-	.delete-popover::before {
-	  content: "";
-	  position: absolute;
-	  width: 0;
-	  height: 0;
-	  border-left: 8px solid transparent;
-	  border-right: 8px solid transparent;
-	  border-bottom: 8px solid white;
-	  top: -8px;
-	  right: 12px;
-	  filter: drop-shadow(0 -2px 2px rgba(0,0,0,0.05));
-	}
-
-	.delete-popover.ltr::before {
-	  left: 12px;
-	  right: auto;
-	}
-
-	.delete-popover.rtl::before {
-	  right: 12px;
-	  left: auto;
-	}
-
-	.delete-popover.ltr {
-	  transform-origin: top left;
-	}
-
-	.delete-popover.rtl {
-	  transform-origin: top right;
-	}
-
-	/* subtle pop-in */
-	@keyframes popIn {
-	  from { opacity: 0; transform: translateY(-6px) scale(.98); }
-	  to   { opacity: 1; transform: translateY(0) scale(1); }
-	}
-
-	/* Buttons inside popover */
-	.delete-popover .pop-actions {
-	  display: flex;
-	  gap: 0.5rem;
-	  justify-content: flex-end;
-	  margin-top: 0.5rem;
-	}
-	.pop-confirm {
-	  background-color: #ef4444; /* red-500 */
-	  color: white;
-	  padding: 0.35rem 0.7rem;
-	  border-radius: 0.375rem;
-	  border: none;
-	  cursor: pointer;
-	  font-weight: 600;
-	}
-	.pop-cancel {
-	  background: transparent;
-	  color: #374151; /* gray-700 */
-	  padding: 0.35rem 0.6rem;
-	  border-radius: 0.375rem;
-	  border: 1px solid #e5e7eb;
-	  cursor: pointer;
-	}
-
-	/* subtle hover states */
-	.pop-confirm:hover { filter: brightness(0.95); }
-	.pop-cancel:hover { background: #f8fafc; }
-
-
-	/* keep table‐layout fixed so colgroup is honored */
-	#uploadSection table {
-	  width: 100%;
-	  table-layout: fixed;
-	  border-collapse: collapse;
-	}
-
-	/* vertical separator */
-	#uploadSection td + td,
-	#uploadSection th + th {
-	  border-left: 2px solid #e5e7eb;
-	}
-
-	/* padding, wrapping, header style */
-	#uploadSection th,
-	#uploadSection td {
-	  padding: 0.75rem;
-	  white-space: normal;
-	  overflow-wrap: anywhere;
-	  border-bottom: 1px solid #e5e7eb;
-	}
-
-	#uploadSection thead th {
-	  background: #f3f4f6;
-	  font-weight: 600;
-	  border-bottom: 2px solid #e5e7eb;
-	}
-
-
-	#pdfList {
-	  width: 100%;
-	  table-layout: fixed;
-	  border-collapse: collapse;
-	  font-size: 0.875rem;
-	}
-
-	html[dir="ltr"] label,
-	html[dir="ltr"] #uploadedDocumentsTitle {
-	  text-align: left;
-	}
-
-	#chatMessages > .flex {
-	  margin-top: 5px;
-	  margin-bottom: 5px;
-	}
-
-	#toggleThinkingDisplay {
-	  white-space: nowrap;
-	}
-
-	@keyframes zoomOutIn {
-	  0% {
-	    transform: scale(1);
-	    opacity: 1;
-	  }
-	  50% {
-	    transform: scale(0.8);
-	    opacity: 0;
-	  }
-	  100% {
-	    transform: scale(1);
-	    opacity: 1;
-	  }
-	}
-
-	.response-message.transition-zoom {
-	  animation: zoomOutIn 0.6s ease-in-out;
-	}
-
-  .flex-container {
-	position: relative;
-	display: flex;
-	flex-direction: row;
-	flex: 1;
-	overflow: visible;
-  }
-  #uploadSection {
-    width: 350px;
-	transition: width 0.3s ease, padding 0.3s ease;
-	padding: 2.5rem 1.5rem 1.5rem 1.5rem;
-    background: #ffffff;
-    border-radius: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    position: relative;
-	overflow-y: auto;  /* Independent scrolling for sidebar */
-	overflow-x: visible;
-	min-height: 0;
-	z-index: 10;
-	height: 100vh;  /* Full viewport height */
-  }
-  #uploadSection.shrunk {
-    width: 300px;
-    padding: 1rem;
-    border-right: 2px solid #e2e8f0;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.08);
-    background: #f8fafc;
-  }
-  #uploadSection h1 {
-    font-size: 1.5rem;
-    color: #1e40af;
-    margin-bottom: 1rem;
-    font-weight: 600;
-  }
-  #uploadSection.shrunk h1 {
-    font-size: 1rem;
-    margin-bottom: 0.75rem;
-    text-align: center;
-  }
-  #uploadSection label {
-    font-size: 1rem;
-    color: #1f2937;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-  }
-  #sourceFile {
-    font-size: 0.875rem;
-    padding: 0.5rem;
-    margin-bottom: 1rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    width: 100%;
-    background: #f9fafb;
-  }
-  #uploadButton {
-    font-size: 1rem;
-    padding: 0.5rem 1rem;
-    background-color: #1e40af;
-    color: white;
-    border-radius: 0.375rem;
-    width: 100%;
-    transition: background-color 0.2s ease;
-  }
-  #uploadButton:hover {
-    background-color: #1e3a8a;
-  }
-  #toggleButton {
-	top: 0.75rem;
-	z-index: 50000;
-    position: absolute;
-    top: 0.75rem;
-    width: 24px;
-    height: 24px;
-    background-color: #e2e8f0;
-    border: 1px solid #cbd5e1;
-    border-radius: 9999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-weight: bold;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    right: auto;
-    left: auto;
-    transition: left 0.3s ease, right 0.3s ease;
-  }
-
-  #success, #error {
-    font-size: 0.875rem;
-    margin-top: 0.5rem;
-    text-align: center;
-  }
-  #success {
-    color: #15803d;
-  }
-  #error {
-    color: #b91c1c;
-  }
-  .chat-section [dir="rtl"] {
-    direction: rtl;
-    text-align: right;
-  }
-  .chat-section {
-    flex: 1 1 0;
-    display: flex;
-	min-height: 0;
-	overflow: hidden; 
-    flex-direction: column;
-    padding: 2rem;
-    background: #f1f5f9;
-	position: relative;
-	z-index: 1;
-  }
-  
-  #chatMessages {
-    flex: 1 1 auto;
-	min-height: 0; 
-    overflow-y: auto;
-    padding: 1.5rem;
-    background-color: #ffffff;
-    border-radius: 0.75rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    display: flex;
-    flex-direction: column;
-  }
-  #chatInput {
-    padding: 0.75rem;
-    font-size: 1rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    width: 100%;
-  }
-  #sendButton {
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    background-color: #1e40af;
-    color: white;
-    border-radius: 0.375rem;
-    transition: background-color 0.2s ease;
-  }
-  #sendButton:hover {
-    background-color: #1e3a8a;
-  }
-  /* Disabled state visuals */
-  button:disabled,
-  input:disabled,
-  textarea:disabled {
-    opacity: 0.55;
-    cursor: not-allowed !important;
-    filter: grayscale(10%);
-    pointer-events: none;
-  }
-  /* Keep primary button colors but dim them when disabled */
-  #uploadButton:disabled,
-  #newChatBtn:disabled,
-  #sendButton:disabled,
-  #clearDocsBtn:disabled {
-    background-color: #94a3b8 !important; /* slate-400 */
-    color: #ffffff !important;
-  }
-  /* Disabled file input background */
-  #sourceFile:disabled {
-    background: #e5e7eb; /* gray-200 */
-  }
-  
-  .thinking-text {
-    font-style: italic;
-    color: #6b7280;
-    overflow: hidden;
-    white-space: normal;
-    display: -webkit-box;
-    -webkit-line-clamp: 10;
-    -webkit-box-orient: vertical;
-    line-height: 1.4em;
-    max-height: 24em;
-    word-break: break-word;
-    width: 640px;
-	padding-top: 0.6em;
-	padding-bottom: 0.6em;
-	box-sizing: border-box;
-	-webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
-	mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
-  }
-
-  .thinking-indicator {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  .thinking-indicator img {
-    width: 20px;
-    height: 20px;
-    animation: pulse 1.5s infinite ease-in-out;
-  }
-  .thinking-indicator span {
-    font-style: italic;
-    color: #6b7280;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: normal;
-    line-height: 1.2rem;
-    max-height: 3.6rem;
-  }
-
-  @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-  }
-
-  .chat-section .justify-end > div { /* user bubble */
-    padding: 1rem;
-  }
-
-  .response-message.is-thinking {
-    max-height: 4.5em !important;
-    height: 4.5em !important;
-    overflow: hidden !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    direction: rtl !important;
-    text-align: right !important;
-    padding: 0.75rem 1.5rem !important;
-    gap: 0.5rem !important;
-    transform: scale(0.95);
-    opacity: 0.7;
-    box-shadow: 0 0 10px rgba(30, 64, 175, 0.4);
-    transition: all 0.6s ease-in-out;
-	max-width: 640px !important;
-  }
-
-  .response-message.is-thinking.cot-thinking-active {
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-    display: block !important;
-    align-items: stretch !important;
-    justify-content: flex-start !important;
-    opacity: 1 !important;
-    transform: none !important;
-    padding: 1.25rem !important;
-    width: min(100%, 720px) !important;
-    direction: inherit !important;
-    text-align: inherit !important;
-    gap: 1rem !important;
-  }
-
-  .response-message.is-thinking.cot-thinking-active .cot-thinking-container {
-    max-width: 100%;
-    margin: 0 auto;
-  }
-
-  html[dir="rtl"] .response-message.is-thinking.cot-thinking-active {
-    direction: rtl !important;
-    text-align: right !important;
-  }
-
-  html[dir="ltr"] .response-message.is-thinking.cot-thinking-active {
-    direction: ltr !important;
-    text-align: left !important;
-  }
-
-  /* Override height restrictions when thinking message contains the think-section */
-  .response-message.is-thinking:has(.think-section),
-  .response-message:has(.think-section) {
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-    display: block !important;
-  }
-
-  .response-message.is-thinking.hide-thinking-message {
-      opacity: 0 !important;
-      max-height: 0 !important;
-      padding-top: 0 !important;
-      padding-bottom: 0 !important;
-      box-shadow: none !important;
-      border: none !important;
-  }
-
-  .thinking-glow {
-     box-shadow: 0 0 15px rgba(30, 64, 175, 0.8), 0 0 20px rgba(30, 64, 175, 0.6);
-  }
-
-  .bg-indigo-500,
-  .response-message {
-    transition: all 0.6s ease-in-out;
-    transform-origin: center center;
-	overflow-wrap: anywhere;
-    max-width: 600px;
-  }
-
-  .response-message.final-answer {
-    height: auto !important;
-    padding: 1rem !important;
-    opacity: 1 !important;
-    transform: scale(1) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    max-width: 600px !important;
-    max-height: none !important;
-  }
-
-  /* When response contains thinking section, allow it to be wider */
-  .response-message.final-answer:has(.think-section) {
-    max-width: 90% !important;
-  }
-
-  @media (min-width: 1024px) {
-    .response-message.final-answer:has(.think-section) {
-      max-width: 800px !important;
-    }
-  }
- 
-  #pdfList th,
-  #pdfList td {
-    padding: 0.75rem;
-    text-align: left;
-    border-bottom: 1px solid #e5e7eb;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  #pdfList td + td,
-  #pdfList th + th {
-    border-left: 2px solid #e5e7eb;
-  }
-
-  #pdfList thead th {
-    background-color: #f3f4f6;
-    font-weight: 600;
-    font-size: 0.875rem;
-  }
-
-  #pdfList tbody td {
-    padding: 0.75rem;
-    border-bottom: 1px solid #e5e7eb;
-  }
-  #pdfList tbody td + td {
-    border-left: 2px solid #e5e7eb;
-  }
-  .filename-cell {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    direction: ltr;
-    text-align: left;
-  }
-
-  html[dir="rtl"] .filename-cell {
-    text-align: right;
-  }
-  html[dir="rtl"] #pdfList th,
-  html[dir="rtl"] #pdfList td {
-	text-align: right;
-  }
-  #pdfTable th {
-    text-align: left;
-  }
-  html[dir="rtl"] #pdfTable th {
-    text-align: right;
-    direction: rtl;
-  }
-
-  /* ===== Chats list styles ===== */
-  #chatsSection {
-    width: 100%;
-    margin-top: 1rem;
-  }
-  #chatsSection h2 {
-      text-align: right;
-  }
-
-  html[dir="ltr"] #chatsSection h2 {
-      text-align: left;
-  }
-
-  #chatList {
-    list-style: none;
-    padding: 0;
-    margin-top: 0.5rem;
-    max-height: 220px;
-    overflow-y: auto;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
-  }
-  .chat-list-item {
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid #f1f5f9;
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .chat-list-item:last-child {
-    border-bottom: none;
-  }
-  .chat-list-item.active {
-    background-color: #e0e7ff;
-    font-weight: 600;
-  }
-  #newChatBtn {
-    width: 100%;
-    margin-top: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.375rem;
-    background-color: #1e40af;
-    color: #fff;
-    transition: background-color 0.2s ease;
-  }
-  #newChatBtn:hover {
-    background-color: #1e3a8a;
-  }
-  /* ================================ */
-
-  /* Responsive adjustments */
-  @media (max-width: 640px) {
-	.flex-container { flex-direction: column; }
-	/* Floating hamburger visible on mobile */
-	.hamburger-fab { display: flex; }
-	#uploadSection { width: 100%; padding: 0.75rem; box-shadow: none; border-radius: 0; }
-	#uploadSection.shrunk { width: 100%; padding: 0.75rem; border-right: 0; }
-	#toggleButton { display: none; }
-	.chat-section { padding: 0.5rem; }
-	#chatMessages { padding: 0.5rem; margin-bottom: 0.5rem; padding-top: 3rem; }
-	#chatInput { font-size: 0.95rem; }
-	#sendButton, #uploadButton, #newChatBtn, #clearDocsBtn { padding: 0.55rem 0.75rem; }
-	#pdfTable colgroup { display: none; }
-	#pdfTable th, #pdfTable td { padding: 0.5rem; font-size: 0.85rem; }
-	#pdfList { font-size: 0.85rem; }
-	.title-row { gap: 0.4rem; }
-	.title-row img { width: 24px; height: 24px; }
-	/* Mobile view switching */
-	.mobile-hidden { display: none !important; }
-  }
-
-	/* Mobile nav hidden by default; media query will show it */
-	.mobile-nav { display: none; }
-	/* Off-canvas drawer base styles */
-	.mobile-drawer { position: fixed; top: 0; left: 0; height: 100%; width: 85%; max-width: 380px; background: #ffffff; box-shadow: 2px 0 12px rgba(0,0,0,0.2); transform: translateX(-100%); transition: transform 250ms ease; z-index: 100000; overflow-y: auto; }
-	.mobile-drawer.open { transform: translateX(0); }
-	/* RTL: drawer from right side */
-	html[dir="rtl"] .mobile-drawer { left: auto; right: 0; transform: translateX(100%); box-shadow: -2px 0 12px rgba(0,0,0,0.2); }
-	html[dir="rtl"] .mobile-drawer.open { transform: translateX(0); }
-	.mobile-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); opacity: 0; pointer-events: none; transition: opacity 200ms ease; z-index: 99999; }
-	.mobile-overlay.visible { opacity: 1; pointer-events: auto; }
-	.inside-drawer .title-row { display: none; }
-	/* Floating hamburger inside chat window */
-	.hamburger-fab { display: none; position: absolute; top: 8px; left: 8px; z-index: 50001; background: rgba(255,255,255,0.9); border: 1px solid #cbd5e1; border-radius: 9999px; width: 36px; height: 36px; display: none; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
-	html[dir="rtl"] .hamburger-fab { left: auto; right: 8px; }
-
-	/* Enhanced Chain-of-Thought Animation - Ultra Appealing */
-	.cot-thinking-container {
-	  display: flex;
-	  flex-direction: column;
-	  gap: 16px;
-	  padding: 20px;
-	  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	  border-radius: 12px;
-	  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
-	  position: relative;
-	  overflow: hidden;
-	}
-
-	.cot-thinking-container::before {
-	  content: '';
-	  position: absolute;
-	  top: -50%;
-	  left: -50%;
-	  width: 200%;
-	  height: 200%;
-	  background: linear-gradient(
-	    45deg,
-	    transparent,
-	    rgba(255, 255, 255, 0.1),
-	    transparent
-	  );
-	  animation: shimmer 3s infinite;
-	}
-
-	@keyframes shimmer {
-	  0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
-	  100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
-	}
-
-	.cot-step {
-	  display: flex;
-	  align-items: center;
-	  gap: 12px;
-	  padding: 12px 16px;
-	  background: rgba(255, 255, 255, 0.95);
-	  border-radius: 10px;
-	  opacity: 0;
-	  transform: translateX(-30px) scale(0.9);
-	  animation: slideInBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-	  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-	  position: relative;
-	  z-index: 1;
-	}
-
-	@keyframes slideInBounce {
-	  0% {
-	    opacity: 0;
-	    transform: translateX(-30px) scale(0.9);
-	  }
-	  60% {
-	    opacity: 1;
-	    transform: translateX(5px) scale(1.02);
-	  }
-	  100% {
-	    opacity: 1;
-	    transform: translateX(0) scale(1);
-	  }
-	}
-
-	.cot-step-icon {
-	  font-size: 24px;
-	  animation: iconPulseGlow 2s ease-in-out infinite;
-	  filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6));
-	  display: inline-block;
-	}
-
-	@keyframes iconPulseGlow {
-	  0%, 100% {
-	    transform: scale(1) rotate(0deg);
-	    filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6));
-	  }
-	  25% {
-	    transform: scale(1.15) rotate(-5deg);
-	    filter: drop-shadow(0 0 16px rgba(102, 126, 234, 0.9));
-	  }
-	  50% {
-	    transform: scale(1.2) rotate(0deg);
-	    filter: drop-shadow(0 0 20px rgba(118, 75, 162, 0.9));
-	  }
-	  75% {
-	    transform: scale(1.15) rotate(5deg);
-	    filter: drop-shadow(0 0 16px rgba(102, 126, 234, 0.9));
-	  }
-	}
-
-	.cot-step-text {
-	  font-size: 15px;
-	  font-weight: 600;
-	  color: #1F2937;
-	  flex: 1;
-	  letter-spacing: 0.3px;
-	}
-
-	.cot-step::before {
-	  content: '';
-	  position: absolute;
-	  left: 0;
-	  top: 0;
-	  height: 100%;
-	  width: 4px;
-	  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-	  border-radius: 10px 0 0 10px;
-	  opacity: 0;
-	  animation: progressBar 0.8s ease-out 0.3s forwards;
-	}
-
-	@keyframes progressBar {
-	  from { opacity: 0; height: 0%; }
-	  to { opacity: 1; height: 100%; }
-	}
-
-	.cot-step.completed {
-	  opacity: 0.7;
-	  transform: scale(0.97);
-	  transition: all 0.4s ease;
-	  background: rgba(255, 255, 255, 0.7);
-	}
-
-	.cot-step.completed .cot-step-icon {
-	  animation: none;
-	  filter: grayscale(0.3) drop-shadow(0 0 4px rgba(102, 126, 234, 0.3));
-	  transform: scale(0.95);
-	  transition: all 0.4s ease;
-	}
-
-	.cot-step.completed .cot-step-text {
-	  color: #6B7280;
-	}
-
-	.cot-step.completed::after {
-	  content: '✓';
-	  position: absolute;
-	  right: 16px;
-	  font-size: 20px;
-	  color: #10B981;
-	  animation: checkmarkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-	}
-
-	html[dir="rtl"] .cot-step.completed::after {
-	  right: auto;
-	  left: 16px;
-	}
-
-	@keyframes checkmarkPop {
-	  0% { transform: scale(0) rotate(-45deg); opacity: 0; }
-	  100% { transform: scale(1) rotate(0deg); opacity: 1; }
-	}
-
-	/* Thinking Process Section - Redesigned for Better UX */
-	.think-section {
-	  background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
-	  border: 2px solid #818CF8;
-	  border-radius: 16px;
-	  padding: 24px 32px;
-	  margin: 20px 0;
-	  width: 100%;
-	  max-width: 100% !important;  /* Override parent constraints */
-	  /* No min-height - let content determine height */
-	  box-sizing: border-box;
-	  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-	  font-size: 15px;  /* Increased from 14px */
-	  line-height: 1.8;  /* Increased from 1.6 for better readability */
-	  color: #1E293B;
-	  white-space: pre-wrap;
-	  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15);
-	  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-	  position: relative;
-	  /* No overflow hidden on base class */
-	}
-
-	.think-section::before {
-	  content: '💭';
-	  position: absolute;
-	  top: 16px;
-	  left: 24px;
-	  font-size: 24px;
-	  opacity: 0.6;
-	  animation: pulse 2s ease-in-out infinite;
-	}
-
-	html[dir="rtl"] .think-section::before {
-	  left: auto;
-	  right: 24px;
-	}
-
-	.think-section:hover {
-	  box-shadow: 0 8px 30px rgba(99, 102, 241, 0.25);
-	  border-color: #6366F1;
-	}
-
-	.think-section.collapsed {
-	  max-height: 150px;  /* Show just a preview when collapsed */
-	  overflow: hidden;  /* Hide overflow only when collapsed */
-	  cursor: pointer;
-	  padding-bottom: 70px; /* Space for expand button */
-	}
-
-	.think-section.collapsed::after {
-	  content: '▼ Click to expand thinking process';
-	  position: absolute;
-	  bottom: 16px;
-	  left: 50%;
-	  transform: translateX(-50%);
-	  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
-	  color: white;
-	  padding: 10px 24px;
-	  border-radius: 24px;
-	  font-size: 13px;
-	  font-weight: 600;
-	  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
-	  animation: gentleBounce 2s ease-in-out infinite;
-	  white-space: nowrap;
-	  z-index: 10;
-	}
-
-	html[dir="rtl"] .think-section.collapsed::after {
-	  content: '▼ לחץ להרחבת תהליך החשיבה';
-	}
-
-	@keyframes gentleBounce {
-	  0%, 100% { transform: translateX(-50%) translateY(0); }
-	  50% { transform: translateX(-50%) translateY(-4px); }
-	}
-
-	.think-section:not(.collapsed) {
-	  max-height: none !important;  /* Allow full content to show when expanded */
-	  min-height: auto !important;  /* No minimum height restrictions */
-	  height: auto !important;  /* Let content determine height */
-	  overflow: visible;  /* Show all content when expanded */
-	  padding-top: 56px; /* Space for collapse button */
-	}
-
-	.think-section:not(.collapsed)::after {
-	  content: '▲ Click to collapse';
-	  position: absolute;
-	  top: 16px;
-	  right: 24px;
-	  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
-	  color: white;
-	  padding: 8px 20px;
-	  border-radius: 20px;
-	  font-size: 12px;
-	  font-weight: 600;
-	  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.3);
-	  cursor: pointer;
-	  white-space: nowrap;
-	}
-
-	html[dir="rtl"] .think-section:not(.collapsed)::after {
-	  content: '▲ לחץ לכיווץ';
-	  right: auto;
-	  left: 24px;
-	}
-
-	/* Citation Styling - Clean and Professional */
-	.citation {
-	  display: block;
-	  font-size: 12px;
-	  font-style: italic;
-	  color: #6B7280;
-	  margin-top: 8px;
-	  margin-bottom: 16px;
-	  padding: 6px 12px;
-	  border-left: 3px solid #D1D5DB;
-	  background: #F9FAFB;
-	  border-radius: 4px;
-	  word-break: keep-all;
-	  overflow-wrap: break-word;
-	}
-
-	html[dir="rtl"] .citation {
-	  padding-left: 8px;
-	  padding-right: 12px;
-	  border-left: none;
-	  border-right: 3px solid #D1D5DB;
-	}
-
-	/* Style citations that match the pattern (Source: ...) */
-	.response-message:not(.is-thinking) {
-	  line-height: 1.6;
-	}
-
-	.confidence-badge {
-	  display: inline-flex;
-	  align-items: center;
-	  gap: 6px;
-	  padding: 8px 16px;
-	  border-radius: 20px;
-	  font-size: 13px;
-	  font-weight: 700;
-	  margin: 12px 0;
-	  letter-spacing: 0.5px;
-	  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-	  animation: badgeFadeIn 0.5s ease-out;
-	  text-transform: uppercase;
-	}
-
-	@keyframes badgeFadeIn {
-	  from {
-	    opacity: 0;
-	    transform: scale(0.8) translateY(-10px);
-	  }
-	  to {
-	    opacity: 1;
-	    transform: scale(1) translateY(0);
-	  }
-	}
-
-	.confidence-badge::before {
-	  content: '';
-	  width: 8px;
-	  height: 8px;
-	  border-radius: 50%;
-	  background: currentColor;
-	  animation: badgePulse 2s ease-in-out infinite;
-	}
-
-	@keyframes badgePulse {
-	  0%, 100% { opacity: 1; transform: scale(1); }
-	  50% { opacity: 0.6; transform: scale(1.3); }
-	}
-
-	.confidence-HIGH {
-	  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-	  color: white;
-	}
-
-	.confidence-MEDIUM {
-	  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-	  color: white;
-	}
-
-	.confidence-LOW {
-	  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-	  color: white;
-	}
-</style>
-
-  <script>
-	// store thinking DOM elements per conversation so we can reattach them after switching
-	const thinkingElementsByConversation = {};
-
-	// maps UI‐lang → (code → human label)
-	const langLabels = {
-	  en: { en: "English", he: "Hebrew" },
-	  he: { en: "אנגלית", he: "עברית" }
-	};
-
-    let showThinkingBlock = true;
-    let currentThinkingMessageElement = null;
-
-    // === Conversations state ===
-    let activeConversationId = null;
-
-	// Manage a single open popover at a time
-	let currentDeletePopover = null;
-
-	function showDeletePopover(anchorEl, options) {
-	  // options: { id, title, onConfirm, message }
-	  hideDeletePopover(); // close any other
-
-	  const pop = document.createElement('div');
-	  pop.className = 'delete-popover';
-	  pop.tabIndex = -1; // focusable for keyboard handling
-	  pop.setAttribute('role', 'dialog');
-	  pop.setAttribute('aria-modal', 'false');
-
-	  const msg = options.message || translations[userLang]?.confirmDeleteConversation || "Delete conversation?";
-	  const safeTitle = escapeHtml(options.title || options.id);
-
-	  const confirmLabel = escapeHtml(options.confirmLabel || translations[userLang]?.confirmDeleteBtn || "Delete");
-	  const cancelLabel = escapeHtml(options.cancelLabel || translations[userLang]?.cancelBtn || "Cancel");
-
-	  pop.innerHTML = `
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>חוקר המסמכים</title>
+	<link rel="icon" href="images/Icon.png">
+	<link href="css/tailwind.min.css" rel="stylesheet">
+	<script src="js/htmx.org@2.0.2.js"></script>
+	<script src="js/marked.min.js"></script>
+	<style>
+		/* Title row with icon that mirrors in RTL */
+		.title-row {
+			display: flex;
+			align-items: center;
+			gap: 0.6rem;
+		}
+
+		html[dir="rtl"] .title-row {
+			flex-direction: row-reverse;
+		}
+
+		.title-row img {
+			width: 28px;
+			height: 28px;
+			display: block;
+			transform: translateY(-5px);
+		}
+
+		.title-row .title-icon {
+			order: 0;
+		}
+
+		.title-row h1 {
+			order: 1;
+			margin: 0;
+			margin-top: 2px;
+			line-height: 1;
+			display: inline-block;
+		}
+
+		/* No RTL-specific order overrides; row-reverse handles placement */
+		html,
+		body {
+			height: 100%;
+			min-height: 0;
+		}
+
+		.flex-container {
+			height: 100%;
+			min-height: 0;
+		}
+
+		/* new */
+
+		.pdf-table-wrapper {
+			/* Removed scrolling - using pagination instead */
+		}
+
+		.delete-conv-btn {
+			color: #9ca3af;
+			font-size: 0.9rem;
+		}
+
+		.chat-list-item:hover .delete-conv-btn {
+			color: #ef4444;
+		}
+
+		/* keep the header visible while scrolling */
+		#pdfTable thead th {
+			position: sticky;
+			top: 0;
+			background: #f3f4f6;
+			/* same colour you use already */
+			z-index: 1;
+		}
+
+		.chat-list-divider {
+			margin: 1.5rem 0;
+			/* Adds vertical margin */
+			border: 0;
+			border-top: 1px solid #e5e7eb;
+			/* Light gray divider */
+			background: linear-gradient(to right, transparent, #e5e7eb, transparent);
+			/* Subtle gradient effect */
+		}
+
+		/* Delete confirm popover */
+		.delete-popover {
+			position: fixed;
+			z-index: 100001;
+			min-width: 220px;
+			max-width: 320px;
+			border-radius: 0.5rem;
+			box-shadow: 0 10px 30px rgba(2, 6, 23, 0.2);
+			background: white;
+			padding: 0.5rem;
+			font-size: 0.95rem;
+			transform-origin: top right;
+			animation: popIn 120ms ease-out;
+		}
+
+		/* Mobile: center modal so buttons are visible */
+		@media (max-width: 640px) {
+			.delete-popover {
+				left: 50% !important;
+				top: 50% !important;
+				transform: translate(-50%, -50%) !important;
+				width: min(90vw, 360px);
+				max-width: 90vw;
+			}
+
+			.delete-popover::before {
+				display: none;
+			}
+		}
+
+		.delete-popover:focus {
+			outline: none;
+		}
+
+		/* little arrow */
+		.delete-popover::before {
+			content: "";
+			position: absolute;
+			width: 0;
+			height: 0;
+			border-left: 8px solid transparent;
+			border-right: 8px solid transparent;
+			border-bottom: 8px solid white;
+			top: -8px;
+			right: 12px;
+			filter: drop-shadow(0 -2px 2px rgba(0, 0, 0, 0.05));
+		}
+
+		.delete-popover.ltr::before {
+			left: 12px;
+			right: auto;
+		}
+
+		.delete-popover.rtl::before {
+			right: 12px;
+			left: auto;
+		}
+
+		.delete-popover.ltr {
+			transform-origin: top left;
+		}
+
+		.delete-popover.rtl {
+			transform-origin: top right;
+		}
+
+		/* subtle pop-in */
+		@keyframes popIn {
+			from {
+				opacity: 0;
+				transform: translateY(-6px) scale(.98);
+			}
+
+			to {
+				opacity: 1;
+				transform: translateY(0) scale(1);
+			}
+		}
+
+		/* Buttons inside popover */
+		.delete-popover .pop-actions {
+			display: flex;
+			gap: 0.5rem;
+			justify-content: flex-end;
+			margin-top: 0.5rem;
+		}
+
+		.pop-confirm {
+			background-color: #ef4444;
+			/* red-500 */
+			color: white;
+			padding: 0.35rem 0.7rem;
+			border-radius: 0.375rem;
+			border: none;
+			cursor: pointer;
+			font-weight: 600;
+		}
+
+		.pop-cancel {
+			background: transparent;
+			color: #374151;
+			/* gray-700 */
+			padding: 0.35rem 0.6rem;
+			border-radius: 0.375rem;
+			border: 1px solid #e5e7eb;
+			cursor: pointer;
+		}
+
+		/* subtle hover states */
+		.pop-confirm:hover {
+			filter: brightness(0.95);
+		}
+
+		.pop-cancel:hover {
+			background: #f8fafc;
+		}
+
+
+		/* keep table‐layout fixed so colgroup is honored */
+		#uploadSection table {
+			width: 100%;
+			table-layout: fixed;
+			border-collapse: collapse;
+		}
+
+		/* vertical separator */
+		#uploadSection td+td,
+		#uploadSection th+th {
+			border-left: 2px solid #e5e7eb;
+		}
+
+		/* padding, wrapping, header style */
+		#uploadSection th,
+		#uploadSection td {
+			padding: 0.75rem;
+			white-space: normal;
+			overflow-wrap: anywhere;
+			border-bottom: 1px solid #e5e7eb;
+		}
+
+		#uploadSection thead th {
+			background: #f3f4f6;
+			font-weight: 600;
+			border-bottom: 2px solid #e5e7eb;
+		}
+
+
+		#pdfList {
+			width: 100%;
+			table-layout: fixed;
+			border-collapse: collapse;
+			font-size: 0.875rem;
+		}
+
+		html[dir="ltr"] label,
+		html[dir="ltr"] #uploadedDocumentsTitle {
+			text-align: left;
+		}
+
+		#chatMessages>.flex {
+			margin-top: 5px;
+			margin-bottom: 5px;
+		}
+
+		#toggleThinkingDisplay {
+			white-space: nowrap;
+		}
+
+		@keyframes zoomOutIn {
+			0% {
+				transform: scale(1);
+				opacity: 1;
+			}
+
+			50% {
+				transform: scale(0.8);
+				opacity: 0;
+			}
+
+			100% {
+				transform: scale(1);
+				opacity: 1;
+			}
+		}
+
+		.response-message.transition-zoom {
+			animation: zoomOutIn 0.6s ease-in-out;
+		}
+
+		.flex-container {
+			position: relative;
+			display: flex;
+			flex-direction: row;
+			flex: 1;
+			overflow: visible;
+		}
+
+		#uploadSection {
+			width: 350px;
+			transition: width 0.3s ease, padding 0.3s ease;
+			padding: 2.5rem 1.5rem 1.5rem 1.5rem;
+			background: #ffffff;
+			border-radius: 0.75rem;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+			position: relative;
+			overflow-y: auto;
+			/* Independent scrolling for sidebar */
+			overflow-x: visible;
+			min-height: 0;
+			z-index: 10;
+			height: 100vh;
+			/* Full viewport height */
+		}
+
+		#uploadSection.shrunk {
+			width: 300px;
+			padding: 1rem;
+			border-right: 2px solid #e2e8f0;
+			box-shadow: 2px 0 8px rgba(0, 0, 0, 0.08);
+			background: #f8fafc;
+		}
+
+		#uploadSection h1 {
+			font-size: 1.5rem;
+			color: #1e40af;
+			margin-bottom: 1rem;
+			font-weight: 600;
+		}
+
+		#uploadSection.shrunk h1 {
+			font-size: 1rem;
+			margin-bottom: 0.75rem;
+			text-align: center;
+		}
+
+		#uploadSection label {
+			font-size: 1rem;
+			color: #1f2937;
+			margin-bottom: 0.5rem;
+			font-weight: 500;
+		}
+
+		#sourceFile {
+			font-size: 0.875rem;
+			padding: 0.5rem;
+			margin-bottom: 1rem;
+			border: 1px solid #d1d5db;
+			border-radius: 0.375rem;
+			width: 100%;
+			background: #f9fafb;
+		}
+
+		#uploadButton {
+			font-size: 1rem;
+			padding: 0.5rem 1rem;
+			background-color: #1e40af;
+			color: white;
+			border-radius: 0.375rem;
+			width: 100%;
+			transition: background-color 0.2s ease;
+		}
+
+		#uploadButton:hover {
+			background-color: #1e3a8a;
+		}
+
+		#toggleButton {
+			top: 0.75rem;
+			z-index: 50000;
+			position: absolute;
+			top: 0.75rem;
+			width: 24px;
+			height: 24px;
+			background-color: #e2e8f0;
+			border: 1px solid #cbd5e1;
+			border-radius: 9999px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+			font-weight: bold;
+			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+			right: auto;
+			left: auto;
+			transition: left 0.3s ease, right 0.3s ease;
+		}
+
+		#success,
+		#error {
+			font-size: 0.875rem;
+			margin-top: 0.5rem;
+			text-align: center;
+		}
+
+		#success {
+			color: #15803d;
+		}
+
+		#error {
+			color: #b91c1c;
+		}
+
+		.chat-section [dir="rtl"] {
+			direction: rtl;
+			text-align: right;
+		}
+
+		.chat-section {
+			flex: 1 1 0;
+			display: flex;
+			min-height: 0;
+			overflow: hidden;
+			flex-direction: column;
+			padding: 2rem;
+			background: #f1f5f9;
+			position: relative;
+			z-index: 1;
+		}
+
+		#chatMessages {
+			flex: 1 1 auto;
+			min-height: 0;
+			overflow-y: auto;
+			padding: 1.5rem;
+			background-color: #ffffff;
+			border-radius: 0.75rem;
+			margin-bottom: 1rem;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+			display: flex;
+			flex-direction: column;
+		}
+
+		#chatInput {
+			padding: 0.75rem;
+			font-size: 1rem;
+			border: 1px solid #d1d5db;
+			border-radius: 0.375rem;
+			width: 100%;
+		}
+
+		#sendButton {
+			padding: 0.75rem 1.5rem;
+			font-size: 1rem;
+			background-color: #1e40af;
+			color: white;
+			border-radius: 0.375rem;
+			transition: background-color 0.2s ease;
+		}
+
+		#sendButton:hover {
+			background-color: #1e3a8a;
+		}
+
+		/* Disabled state visuals */
+		button:disabled,
+		input:disabled,
+		textarea:disabled {
+			opacity: 0.55;
+			cursor: not-allowed !important;
+			filter: grayscale(10%);
+			pointer-events: none;
+		}
+
+		/* Keep primary button colors but dim them when disabled */
+		#uploadButton:disabled,
+		#newChatBtn:disabled,
+		#sendButton:disabled,
+		#clearDocsBtn:disabled {
+			background-color: #94a3b8 !important;
+			/* slate-400 */
+			color: #ffffff !important;
+		}
+
+		/* Disabled file input background */
+		#sourceFile:disabled {
+			background: #e5e7eb;
+			/* gray-200 */
+		}
+
+		.thinking-text {
+			font-style: italic;
+			color: #6b7280;
+			overflow: hidden;
+			white-space: normal;
+			display: -webkit-box;
+			-webkit-line-clamp: 10;
+			-webkit-box-orient: vertical;
+			line-height: 1.4em;
+			max-height: 24em;
+			word-break: break-word;
+			width: 640px;
+			padding-top: 0.6em;
+			padding-bottom: 0.6em;
+			box-sizing: border-box;
+			-webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+			mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
+		}
+
+		.thinking-indicator {
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+		}
+
+		.thinking-indicator img {
+			width: 20px;
+			height: 20px;
+			animation: pulse 1.5s infinite ease-in-out;
+		}
+
+		.thinking-indicator span {
+			font-style: italic;
+			color: #6b7280;
+			display: -webkit-box;
+			-webkit-line-clamp: 3;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: normal;
+			line-height: 1.2rem;
+			max-height: 3.6rem;
+		}
+
+		@keyframes pulse {
+			0% {
+				transform: scale(1);
+			}
+
+			50% {
+				transform: scale(1.1);
+			}
+
+			100% {
+				transform: scale(1);
+			}
+		}
+
+		.chat-section .justify-end>div {
+			/* user bubble */
+			padding: 1rem;
+		}
+
+		.response-message.is-thinking {
+			max-height: 4.5em !important;
+			height: 4.5em !important;
+			overflow: hidden !important;
+			display: flex !important;
+			align-items: center !important;
+			justify-content: flex-end !important;
+			direction: rtl !important;
+			text-align: right !important;
+			padding: 0.75rem 1.5rem !important;
+			gap: 0.5rem !important;
+			transform: scale(0.95);
+			opacity: 0.7;
+			box-shadow: 0 0 10px rgba(30, 64, 175, 0.4);
+			transition: all 0.6s ease-in-out;
+			max-width: 640px !important;
+		}
+
+		.response-message.is-thinking.cot-thinking-active {
+			max-height: none !important;
+			height: auto !important;
+			overflow: visible !important;
+			display: block !important;
+			align-items: stretch !important;
+			justify-content: flex-start !important;
+			opacity: 1 !important;
+			transform: none !important;
+			padding: 1.25rem !important;
+			width: min(100%, 720px) !important;
+			direction: inherit !important;
+			text-align: inherit !important;
+			gap: 1rem !important;
+		}
+
+		.response-message.is-thinking.cot-thinking-active .cot-thinking-container {
+			max-width: 100%;
+			margin: 0 auto;
+		}
+
+		html[dir="rtl"] .response-message.is-thinking.cot-thinking-active {
+			direction: rtl !important;
+			text-align: right !important;
+		}
+
+		html[dir="ltr"] .response-message.is-thinking.cot-thinking-active {
+			direction: ltr !important;
+			text-align: left !important;
+		}
+
+		/* Override height restrictions when thinking message contains the think-section */
+		.response-message.is-thinking:has(.think-section),
+		.response-message:has(.think-section) {
+			max-height: none !important;
+			height: auto !important;
+			overflow: visible !important;
+			display: block !important;
+		}
+
+		.response-message.is-thinking.hide-thinking-message {
+			opacity: 0 !important;
+			max-height: 0 !important;
+			padding-top: 0 !important;
+			padding-bottom: 0 !important;
+			box-shadow: none !important;
+			border: none !important;
+		}
+
+		.thinking-glow {
+			box-shadow: 0 0 15px rgba(30, 64, 175, 0.8), 0 0 20px rgba(30, 64, 175, 0.6);
+		}
+
+		.bg-indigo-500,
+		.response-message {
+			transition: all 0.6s ease-in-out;
+			transform-origin: center center;
+			overflow-wrap: anywhere;
+			max-width: 85%;
+		}
+
+		.response-message.final-answer {
+			height: auto !important;
+			padding: 1rem !important;
+			opacity: 1 !important;
+			transform: scale(1) !important;
+			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+			max-width: 85% !important;
+			max-height: none !important;
+		}
+
+		/* When response contains thinking section, allow it to be wider */
+		.response-message.final-answer:has(.think-section) {
+			max-width: 90% !important;
+		}
+
+		@media (min-width: 1024px) {
+			.response-message.final-answer:has(.think-section) {
+				max-width: 900px !important;
+			}
+
+			.response-message.final-answer {
+				max-width: 85% !important;
+			}
+		}
+
+		#pdfList th,
+		#pdfList td {
+			padding: 0.75rem;
+			text-align: left;
+			border-bottom: 1px solid #e5e7eb;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		#pdfList td+td,
+		#pdfList th+th {
+			border-left: 2px solid #e5e7eb;
+		}
+
+		#pdfList thead th {
+			background-color: #f3f4f6;
+			font-weight: 600;
+			font-size: 0.875rem;
+		}
+
+		#pdfList tbody td {
+			padding: 0.75rem;
+			border-bottom: 1px solid #e5e7eb;
+		}
+
+		#pdfList tbody td+td {
+			border-left: 2px solid #e5e7eb;
+		}
+
+		.filename-cell {
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			direction: ltr;
+			text-align: left;
+		}
+
+		html[dir="rtl"] .filename-cell {
+			text-align: right;
+		}
+
+		html[dir="rtl"] #pdfList th,
+		html[dir="rtl"] #pdfList td {
+			text-align: right;
+		}
+
+		#pdfTable th {
+			text-align: left;
+		}
+
+		html[dir="rtl"] #pdfTable th {
+			text-align: right;
+			direction: rtl;
+		}
+
+		/* ===== Chats list styles ===== */
+		#chatsSection {
+			width: 100%;
+			margin-top: 1rem;
+		}
+
+		#chatsSection h2 {
+			text-align: right;
+		}
+
+		html[dir="ltr"] #chatsSection h2 {
+			text-align: left;
+		}
+
+		#chatList {
+			list-style: none;
+			padding: 0;
+			margin-top: 0.5rem;
+			max-height: 220px;
+			overflow-y: auto;
+			border: 1px solid #e5e7eb;
+			border-radius: 0.5rem;
+		}
+
+		.chat-list-item {
+			padding: 0.5rem 0.75rem;
+			border-bottom: 1px solid #f1f5f9;
+			cursor: pointer;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.chat-list-item:last-child {
+			border-bottom: none;
+		}
+
+		.chat-list-item.active {
+			background-color: #e0e7ff;
+			font-weight: 600;
+		}
+
+		#newChatBtn {
+			width: 100%;
+			margin-top: 0.5rem;
+			padding: 0.5rem 0.75rem;
+			border-radius: 0.375rem;
+			background-color: #1e40af;
+			color: #fff;
+			transition: background-color 0.2s ease;
+		}
+
+		#newChatBtn:hover {
+			background-color: #1e3a8a;
+		}
+
+		/* ================================ */
+
+		/* Responsive adjustments */
+		@media (max-width: 640px) {
+			.flex-container {
+				flex-direction: column;
+			}
+
+			/* Floating hamburger visible on mobile */
+			.hamburger-fab {
+				display: flex;
+			}
+
+			#uploadSection {
+				width: 100%;
+				padding: 0.75rem;
+				box-shadow: none;
+				border-radius: 0;
+			}
+
+			#uploadSection.shrunk {
+				width: 100%;
+				padding: 0.75rem;
+				border-right: 0;
+			}
+
+			#toggleButton {
+				display: none;
+			}
+
+			.chat-section {
+				padding: 0.5rem;
+			}
+
+			#chatMessages {
+				padding: 0.5rem;
+				margin-bottom: 0.5rem;
+				padding-top: 3rem;
+			}
+
+			#chatInput {
+				font-size: 0.95rem;
+			}
+
+			#sendButton,
+			#uploadButton,
+			#newChatBtn,
+			#clearDocsBtn {
+				padding: 0.55rem 0.75rem;
+			}
+
+			#pdfTable colgroup {
+				display: none;
+			}
+
+			#pdfTable th,
+			#pdfTable td {
+				padding: 0.5rem;
+				font-size: 0.85rem;
+			}
+
+			#pdfList {
+				font-size: 0.85rem;
+			}
+
+			.title-row {
+				gap: 0.4rem;
+			}
+
+			.title-row img {
+				width: 24px;
+				height: 24px;
+			}
+
+			/* Mobile view switching */
+			.mobile-hidden {
+				display: none !important;
+			}
+		}
+
+		/* Mobile nav hidden by default; media query will show it */
+		.mobile-nav {
+			display: none;
+		}
+
+		/* Off-canvas drawer base styles */
+		.mobile-drawer {
+			position: fixed;
+			top: 0;
+			left: 0;
+			height: 100%;
+			width: 85%;
+			max-width: 380px;
+			background: #ffffff;
+			box-shadow: 2px 0 12px rgba(0, 0, 0, 0.2);
+			transform: translateX(-100%);
+			transition: transform 250ms ease;
+			z-index: 100000;
+			overflow-y: auto;
+		}
+
+		.mobile-drawer.open {
+			transform: translateX(0);
+		}
+
+		/* RTL: drawer from right side */
+		html[dir="rtl"] .mobile-drawer {
+			left: auto;
+			right: 0;
+			transform: translateX(100%);
+			box-shadow: -2px 0 12px rgba(0, 0, 0, 0.2);
+		}
+
+		html[dir="rtl"] .mobile-drawer.open {
+			transform: translateX(0);
+		}
+
+		.mobile-overlay {
+			position: fixed;
+			inset: 0;
+			background: rgba(0, 0, 0, 0.35);
+			opacity: 0;
+			pointer-events: none;
+			transition: opacity 200ms ease;
+			z-index: 99999;
+		}
+
+		.mobile-overlay.visible {
+			opacity: 1;
+			pointer-events: auto;
+		}
+
+		.inside-drawer .title-row {
+			display: none;
+		}
+
+		/* Floating hamburger inside chat window */
+		.hamburger-fab {
+			display: none;
+			position: absolute;
+			top: 8px;
+			left: 8px;
+			z-index: 50001;
+			background: rgba(255, 255, 255, 0.9);
+			border: 1px solid #cbd5e1;
+			border-radius: 9999px;
+			width: 36px;
+			height: 36px;
+			display: none;
+			align-items: center;
+			justify-content: center;
+			box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+		}
+
+		html[dir="rtl"] .hamburger-fab {
+			left: auto;
+			right: 8px;
+		}
+
+		/* Enhanced Chain-of-Thought Animation - Ultra Appealing */
+		.cot-thinking-container {
+			display: flex;
+			flex-direction: column;
+			gap: 16px;
+			padding: 20px;
+			background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+			border-radius: 12px;
+			box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+			position: relative;
+			overflow: hidden;
+		}
+
+		.cot-thinking-container::before {
+			content: '';
+			position: absolute;
+			top: -50%;
+			left: -50%;
+			width: 200%;
+			height: 200%;
+			background: linear-gradient(45deg,
+					transparent,
+					rgba(255, 255, 255, 0.1),
+					transparent);
+			animation: shimmer 3s infinite;
+		}
+
+		@keyframes shimmer {
+			0% {
+				transform: translateX(-100%) translateY(-100%) rotate(45deg);
+			}
+
+			100% {
+				transform: translateX(100%) translateY(100%) rotate(45deg);
+			}
+		}
+
+		.cot-step {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			padding: 12px 16px;
+			background: rgba(255, 255, 255, 0.95);
+			border-radius: 10px;
+			opacity: 0;
+			transform: translateX(-30px) scale(0.9);
+			animation: slideInBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+			position: relative;
+			z-index: 1;
+		}
+
+		@keyframes slideInBounce {
+			0% {
+				opacity: 0;
+				transform: translateX(-30px) scale(0.9);
+			}
+
+			60% {
+				opacity: 1;
+				transform: translateX(5px) scale(1.02);
+			}
+
+			100% {
+				opacity: 1;
+				transform: translateX(0) scale(1);
+			}
+		}
+
+		.cot-step-icon {
+			font-size: 24px;
+			animation: iconPulseGlow 2s ease-in-out infinite;
+			filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6));
+			display: inline-block;
+		}
+
+		@keyframes iconPulseGlow {
+
+			0%,
+			100% {
+				transform: scale(1) rotate(0deg);
+				filter: drop-shadow(0 0 8px rgba(102, 126, 234, 0.6));
+			}
+
+			25% {
+				transform: scale(1.15) rotate(-5deg);
+				filter: drop-shadow(0 0 16px rgba(102, 126, 234, 0.9));
+			}
+
+			50% {
+				transform: scale(1.2) rotate(0deg);
+				filter: drop-shadow(0 0 20px rgba(118, 75, 162, 0.9));
+			}
+
+			75% {
+				transform: scale(1.15) rotate(5deg);
+				filter: drop-shadow(0 0 16px rgba(102, 126, 234, 0.9));
+			}
+		}
+
+		.cot-step-text {
+			font-size: 15px;
+			font-weight: 600;
+			color: #1F2937;
+			flex: 1;
+			letter-spacing: 0.3px;
+		}
+
+		.cot-step::before {
+			content: '';
+			position: absolute;
+			left: 0;
+			top: 0;
+			height: 100%;
+			width: 4px;
+			background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+			border-radius: 10px 0 0 10px;
+			opacity: 0;
+			animation: progressBar 0.8s ease-out 0.3s forwards;
+		}
+
+		@keyframes progressBar {
+			from {
+				opacity: 0;
+				height: 0%;
+			}
+
+			to {
+				opacity: 1;
+				height: 100%;
+			}
+		}
+
+		.cot-step.completed {
+			opacity: 0.7;
+			transform: scale(0.97);
+			transition: all 0.4s ease;
+			background: rgba(255, 255, 255, 0.7);
+		}
+
+		.cot-step.completed .cot-step-icon {
+			animation: none;
+			filter: grayscale(0.3) drop-shadow(0 0 4px rgba(102, 126, 234, 0.3));
+			transform: scale(0.95);
+			transition: all 0.4s ease;
+		}
+
+		.cot-step.completed .cot-step-text {
+			color: #6B7280;
+		}
+
+		.cot-step.completed::after {
+			content: '✓';
+			position: absolute;
+			right: 16px;
+			font-size: 20px;
+			color: #10B981;
+			animation: checkmarkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+		}
+
+		html[dir="rtl"] .cot-step.completed::after {
+			right: auto;
+			left: 16px;
+		}
+
+		@keyframes checkmarkPop {
+			0% {
+				transform: scale(0) rotate(-45deg);
+				opacity: 0;
+			}
+
+			100% {
+				transform: scale(1) rotate(0deg);
+				opacity: 1;
+			}
+		}
+
+		/* Thinking Process Section - Redesigned for Better UX */
+		.think-section {
+			background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+			border: 2px solid #818CF8;
+			border-radius: 16px;
+			padding: 24px 32px;
+			margin: 20px 0;
+			width: 100%;
+			max-width: 100% !important;
+			/* Override parent constraints */
+			/* No min-height - let content determine height */
+			box-sizing: border-box;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+			font-size: 15px;
+			/* Increased from 14px */
+			line-height: 1.8;
+			/* Increased from 1.6 for better readability */
+			color: #1E293B;
+			white-space: pre-wrap;
+			box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15);
+			transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+			position: relative;
+			/* No overflow hidden on base class */
+		}
+
+		.think-section::before {
+			content: '💭';
+			position: absolute;
+			top: 16px;
+			left: 24px;
+			font-size: 24px;
+			opacity: 0.6;
+			animation: pulse 2s ease-in-out infinite;
+		}
+
+		html[dir="rtl"] .think-section::before {
+			left: auto;
+			right: 24px;
+		}
+
+		.think-section:hover {
+			box-shadow: 0 8px 30px rgba(99, 102, 241, 0.25);
+			border-color: #6366F1;
+		}
+
+		.think-section.collapsed {
+			max-height: 150px;
+			/* Show just a preview when collapsed */
+			overflow: hidden;
+			/* Hide overflow only when collapsed */
+			cursor: pointer;
+			padding-bottom: 70px;
+			/* Space for expand button */
+		}
+
+		.think-section.collapsed::after {
+			content: '▼ Click to expand thinking process';
+			position: absolute;
+			bottom: 16px;
+			left: 50%;
+			transform: translateX(-50%);
+			background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+			color: white;
+			padding: 10px 24px;
+			border-radius: 24px;
+			font-size: 13px;
+			font-weight: 600;
+			box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+			animation: gentleBounce 2s ease-in-out infinite;
+			white-space: nowrap;
+			z-index: 10;
+		}
+
+		html[dir="rtl"] .think-section.collapsed::after {
+			content: '▼ לחץ להרחבת תהליך החשיבה';
+		}
+
+		@keyframes gentleBounce {
+
+			0%,
+			100% {
+				transform: translateX(-50%) translateY(0);
+			}
+
+			50% {
+				transform: translateX(-50%) translateY(-4px);
+			}
+		}
+
+		.think-section:not(.collapsed) {
+			max-height: none !important;
+			/* Allow full content to show when expanded */
+			min-height: auto !important;
+			/* No minimum height restrictions */
+			height: auto !important;
+			/* Let content determine height */
+			overflow: visible;
+			/* Show all content when expanded */
+			padding-top: 56px;
+			/* Space for collapse button */
+		}
+
+		.think-section:not(.collapsed)::after {
+			content: '▲ Click to collapse';
+			position: absolute;
+			top: 16px;
+			right: 24px;
+			background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+			color: white;
+			padding: 8px 20px;
+			border-radius: 20px;
+			font-size: 12px;
+			font-weight: 600;
+			box-shadow: 0 2px 12px rgba(99, 102, 241, 0.3);
+			cursor: pointer;
+			white-space: nowrap;
+		}
+
+		html[dir="rtl"] .think-section:not(.collapsed)::after {
+			content: '▲ לחץ לכיווץ';
+			right: auto;
+			left: 24px;
+		}
+
+		/* Citation Styling - Clean and Professional */
+		.citation {
+			display: block;
+			font-size: 12px;
+			font-style: italic;
+			color: #6B7280;
+			margin-top: 8px;
+			margin-bottom: 16px;
+			padding: 6px 12px;
+			border-left: 3px solid #D1D5DB;
+			background: #F9FAFB;
+			border-radius: 4px;
+			word-break: keep-all;
+			overflow-wrap: break-word;
+		}
+
+		html[dir="rtl"] .citation {
+			padding-left: 8px;
+			padding-right: 12px;
+			border-left: none;
+			border-right: 3px solid #D1D5DB;
+		}
+
+		/* Style citations that match the pattern (Source: ...) */
+		.response-message:not(.is-thinking) {
+			line-height: 1.6;
+		}
+
+		.confidence-badge {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 8px 16px;
+			border-radius: 20px;
+			font-size: 13px;
+			font-weight: 700;
+			margin: 12px 0;
+			letter-spacing: 0.5px;
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+			animation: badgeFadeIn 0.5s ease-out;
+			text-transform: uppercase;
+		}
+
+		@keyframes badgeFadeIn {
+			from {
+				opacity: 0;
+				transform: scale(0.8) translateY(-10px);
+			}
+
+			to {
+				opacity: 1;
+				transform: scale(1) translateY(0);
+			}
+		}
+
+		.confidence-badge::before {
+			content: '';
+			width: 8px;
+			height: 8px;
+			border-radius: 50%;
+			background: currentColor;
+			animation: badgePulse 2s ease-in-out infinite;
+		}
+
+		@keyframes badgePulse {
+
+			0%,
+			100% {
+				opacity: 1;
+				transform: scale(1);
+			}
+
+			50% {
+				opacity: 0.6;
+				transform: scale(1.3);
+			}
+		}
+
+		.confidence-HIGH {
+			background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+			color: white;
+		}
+
+		.confidence-MEDIUM {
+			background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+			color: white;
+		}
+
+		.confidence-LOW {
+			background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+			color: white;
+		}
+
+		.confidence-NONE {
+			background: linear-gradient(135deg, #6B7280 0%, #4B5563 100%);
+			color: white;
+		}
+
+		/* Warning messages for low confidence */
+		.confidence-warning {
+			padding: 12px 16px;
+			border-radius: 8px;
+			margin: 8px 0 12px 0;
+			font-size: 14px;
+			line-height: 1.5;
+			animation: warningSlideIn 0.4s ease-out;
+		}
+
+		@keyframes warningSlideIn {
+			from {
+				opacity: 0;
+				transform: translateY(-8px);
+			}
+
+			to {
+				opacity: 1;
+				transform: translateY(0);
+			}
+		}
+
+		.warning-low {
+			background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+			border-left: 4px solid #F59E0B;
+			color: #92400E;
+		}
+
+		.warning-none {
+			background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+			border-left: 4px solid #EF4444;
+			color: #991B1B;
+		}
+
+		[dir="rtl"] .warning-low,
+		[dir="rtl"] .warning-none {
+			border-left: none;
+			border-right: 4px solid;
+		}
+
+		[dir="rtl"] .warning-low {
+			border-right-color: #F59E0B;
+		}
+
+		[dir="rtl"] .warning-none {
+			border-right-color: #EF4444;
+		}
+	</style>
+
+	<script>
+		// store thinking DOM elements per conversation so we can reattach them after switching
+		const thinkingElementsByConversation = {};
+
+		// maps UI‐lang → (code → human label)
+		const langLabels = {
+			en: { en: "English", he: "Hebrew" },
+			he: { en: "אנגלית", he: "עברית" }
+		};
+
+		let showThinkingBlock = true;
+		let currentThinkingMessageElement = null;
+
+		// === Conversations state ===
+		let activeConversationId = null;
+
+		// Manage a single open popover at a time
+		let currentDeletePopover = null;
+
+		function showDeletePopover(anchorEl, options) {
+			// options: { id, title, onConfirm, message }
+			hideDeletePopover(); // close any other
+
+			const pop = document.createElement('div');
+			pop.className = 'delete-popover';
+			pop.tabIndex = -1; // focusable for keyboard handling
+			pop.setAttribute('role', 'dialog');
+			pop.setAttribute('aria-modal', 'false');
+
+			const msg = options.message || translations[userLang]?.confirmDeleteConversation || "Delete conversation?";
+			const safeTitle = escapeHtml(options.title || options.id);
+
+			const confirmLabel = escapeHtml(options.confirmLabel || translations[userLang]?.confirmDeleteBtn || "Delete");
+			const cancelLabel = escapeHtml(options.cancelLabel || translations[userLang]?.cancelBtn || "Cancel");
+
+			pop.innerHTML = `
 	    <div style="display:flex; gap:0.6rem; align-items:flex-start;">
 	      <div style="flex:1">
 	        <div style="font-weight:600; margin-bottom:0.25rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(safeTitle)}</div>
@@ -1049,353 +1402,353 @@
 	    </div>
 	  `;
 
-	  document.body.appendChild(pop);
+			document.body.appendChild(pop);
 
-	  const isRTL = document.documentElement.dir === 'rtl';
-	  pop.classList.add(isRTL ? 'rtl' : 'ltr');
+			const isRTL = document.documentElement.dir === 'rtl';
+			pop.classList.add(isRTL ? 'rtl' : 'ltr');
 
-	  // position near anchorEl
-	  const rect = anchorEl.getBoundingClientRect();
-	  const isMobileDialog = window.matchMedia('(max-width: 640px)').matches;
-	  if (!isMobileDialog) {
-	    const top = rect.top + rect.height + 8; // viewport-based for fixed positioning
-	    pop.style.top = `${top}px`;
-	    if (document.documentElement.dir === 'rtl') {
-	      const popRight = window.innerWidth - (rect.left - 8 + rect.width);
-	      pop.style.right = `${popRight}px`;
-	      pop.style.left = 'auto';
-	    } else {
-	      const left = rect.right + 8;
-	      pop.style.left = `${left}px`;
-	      pop.style.right = 'auto';
-	    }
-	  } else {
-	    // Centered by CSS for mobile; clear any side-specific values
-	    pop.style.left = '50%';
-	    pop.style.right = 'auto';
-	    pop.style.top = '50%';
-	  }
+			// position near anchorEl
+			const rect = anchorEl.getBoundingClientRect();
+			const isMobileDialog = window.matchMedia('(max-width: 640px)').matches;
+			if (!isMobileDialog) {
+				const top = rect.top + rect.height + 8; // viewport-based for fixed positioning
+				pop.style.top = `${top}px`;
+				if (document.documentElement.dir === 'rtl') {
+					const popRight = window.innerWidth - (rect.left - 8 + rect.width);
+					pop.style.right = `${popRight}px`;
+					pop.style.left = 'auto';
+				} else {
+					const left = rect.right + 8;
+					pop.style.left = `${left}px`;
+					pop.style.right = 'auto';
+				}
+			} else {
+				// Centered by CSS for mobile; clear any side-specific values
+				pop.style.left = '50%';
+				pop.style.right = 'auto';
+				pop.style.top = '50%';
+			}
 
-	  // event handlers
-	  const btnCancel = pop.querySelector('.pop-cancel');
-	  const btnConfirm = pop.querySelector('.pop-confirm');
+			// event handlers
+			const btnCancel = pop.querySelector('.pop-cancel');
+			const btnConfirm = pop.querySelector('.pop-confirm');
 
-	  btnCancel.addEventListener('click', () => {
-	    hideDeletePopover();
-	    if (typeof options.onCancel === 'function') options.onCancel();
-	  });
+			btnCancel.addEventListener('click', () => {
+				hideDeletePopover();
+				if (typeof options.onCancel === 'function') options.onCancel();
+			});
 
-	  btnConfirm.addEventListener('click', async () => {
-	    // disable buttons while request in-flight
-	    btnConfirm.disabled = true;
-	    btnCancel.disabled = true;
-	    try {
-	      await options.onConfirm();
-	    } catch (err) {
-	      console.error('Delete failed', err);
-	      alert(translations[userLang]?.deleteFailed || 'Failed to delete conversation.');
-	    } finally {
-	      hideDeletePopover();
-	    }
-	  });
+			btnConfirm.addEventListener('click', async () => {
+				// disable buttons while request in-flight
+				btnConfirm.disabled = true;
+				btnCancel.disabled = true;
+				try {
+					await options.onConfirm();
+				} catch (err) {
+					console.error('Delete failed', err);
+					alert(translations[userLang]?.deleteFailed || 'Failed to delete conversation.');
+				} finally {
+					hideDeletePopover();
+				}
+			});
 
-	  // close on Escape or click outside
-	  function onKey(e) {
-	    if (e.key === 'Escape') {
-	      hideDeletePopover();
-	    }
-	  }
-	  function onDocClick(e) {
-	    if (!pop.contains(e.target) && e.target !== anchorEl) {
-	      hideDeletePopover();
-	    }
-	  }
+			// close on Escape or click outside
+			function onKey(e) {
+				if (e.key === 'Escape') {
+					hideDeletePopover();
+				}
+			}
+			function onDocClick(e) {
+				if (!pop.contains(e.target) && e.target !== anchorEl) {
+					hideDeletePopover();
+				}
+			}
 
-	  document.addEventListener('keydown', onKey);
-	  setTimeout(() => document.addEventListener('click', onDocClick), 0); // deferred to avoid immediate close on click
+			document.addEventListener('keydown', onKey);
+			setTimeout(() => document.addEventListener('click', onDocClick), 0); // deferred to avoid immediate close on click
 
-	  pop._cleanup = () => {
-	    document.removeEventListener('keydown', onKey);
-	    document.removeEventListener('click', onDocClick);
-	  };
+			pop._cleanup = () => {
+				document.removeEventListener('keydown', onKey);
+				document.removeEventListener('click', onDocClick);
+			};
 
-	  currentDeletePopover = pop;
-	  pop.focus();
-	  return pop;
-	}
+			currentDeletePopover = pop;
+			pop.focus();
+			return pop;
+		}
 
-	function hideDeletePopover() {
-	  if (!currentDeletePopover) return;
-	  const p = currentDeletePopover;
-	  if (p._cleanup) p._cleanup();
-	  p.remove();
-	  currentDeletePopover = null;
-	}
+		function hideDeletePopover() {
+			if (!currentDeletePopover) return;
+			const p = currentDeletePopover;
+			if (p._cleanup) p._cleanup();
+			p.remove();
+			currentDeletePopover = null;
+		}
 
-	/* Small HTML-escape helper (reused) */
-	function escapeHtml(s) {
-	  if (!s) return '';
-	  return String(s)
-	    .replace(/&/g, "&amp;")
-	    .replace(/</g, "&lt;")
-	    .replace(/>/g, "&gt;")
-	    .replace(/"/g, "&quot;")
-	    .replace(/'/g, "&#039;");
-	}
+		/* Small HTML-escape helper (reused) */
+		function escapeHtml(s) {
+			if (!s) return '';
+			return String(s)
+				.replace(/&/g, "&amp;")
+				.replace(/</g, "&lt;")
+				.replace(/>/g, "&gt;")
+				.replace(/"/g, "&quot;")
+				.replace(/'/g, "&#039;");
+		}
 
-	
-    function handleFileSelection() {}
 
-	function streamSSE(reader, onEvent) {
-	  const dec = new TextDecoder();
-	  let buf = '';
+		function handleFileSelection() { }
 
-	  async function loop() {
-	    while (true) {
-	      const { value, done } = await reader.read();
-	      if (done) break;
-	      buf += dec.decode(value, { stream: true });
-	      let idx;
+		function streamSSE(reader, onEvent) {
+			const dec = new TextDecoder();
+			let buf = '';
 
-	      while ((idx = buf.indexOf('\n\n')) !== -1) {
-	        const raw = buf.slice(0, idx).trim();
-	        buf = buf.slice(idx + 2);
+			async function loop() {
+				while (true) {
+					const { value, done } = await reader.read();
+					if (done) break;
+					buf += dec.decode(value, { stream: true });
+					let idx;
 
-	        let name = null;
-	        let data = '';
+					while ((idx = buf.indexOf('\n\n')) !== -1) {
+						const raw = buf.slice(0, idx).trim();
+						buf = buf.slice(idx + 2);
 
-	        raw.split(/\r?\n/).forEach(l => {
-	          if (l.startsWith('event:'))    name = l.slice(6).trim();
-	          else if (l.startsWith('data:')) data += l.slice(5).trim();
-	        });
+						let name = null;
+						let data = '';
 
-	        if (name) {
-	          onEvent(name, data);
-	        }
-	      }
-	    }
-	  }
+						raw.split(/\r?\n/).forEach(l => {
+							if (l.startsWith('event:')) name = l.slice(6).trim();
+							else if (l.startsWith('data:')) data += l.slice(5).trim();
+						});
 
-	  loop().catch(console.error);
-	}
+						if (name) {
+							onEvent(name, data);
+						}
+					}
+				}
+			}
 
-	function uploadPDF(event) {
-	  event.preventDefault();
+			loop().catch(console.error);
+		}
 
-	  const files        = document.getElementById('sourceFile').files;
-	  const progressBar  = document.getElementById('progressBar');
-	  const uploadBtn    = document.getElementById('uploadButton');
-	  const successDiv   = document.getElementById('success');
-	  const errorDiv     = document.getElementById('error');
-	  const spinner      = document.getElementById('uploadSpinner');
+		function uploadPDF(event) {
+			event.preventDefault();
 
-	  if (!files.length) {
-	    errorDiv.textContent = translations[userLang].selectFileError;
-	    errorDiv.classList.remove('hidden');
-	    return;
-	  }
+			const files = document.getElementById('sourceFile').files;
+			const progressBar = document.getElementById('progressBar');
+			const uploadBtn = document.getElementById('uploadButton');
+			const successDiv = document.getElementById('success');
+			const errorDiv = document.getElementById('error');
+			const spinner = document.getElementById('uploadSpinner');
 
-	  errorDiv.classList.add('hidden');
-	  successDiv.classList.add('hidden');
-	  document.getElementById('progressContainer').classList.remove('hidden');
-	  spinner.classList.remove('hidden');
-	  uploadBtn.disabled = true;
-	  progressBar.style.width = '0%';
+			if (!files.length) {
+				errorDiv.textContent = translations[userLang].selectFileError;
+				errorDiv.classList.remove('hidden');
+				return;
+			}
 
-	  const form = new FormData();
-	  for (const f of files) form.append('files', f);
+			errorDiv.classList.add('hidden');
+			successDiv.classList.add('hidden');
+			document.getElementById('progressContainer').classList.remove('hidden');
+			spinner.classList.remove('hidden');
+			uploadBtn.disabled = true;
+			progressBar.style.width = '0%';
 
-	  fetch('/document/analyze', {
-	    method: 'POST',
-	    body:   form,
-	    headers: { 'Accept': 'text/event-stream' }
-	  })
-	  .then(resp => {
-	    if (!resp.ok) throw new Error('upload failed');
-	    streamSSE(resp.body.getReader(), (evt, json) => {
- 		  const data = json ? JSON.parse(json) : {};  
-	      console.log("SSE event:", evt, data);
-		  if (!evt || evt === "") return;
+			const form = new FormData();
+			for (const f of files) form.append('files', f);
 
-	      switch (evt) {
-	        case 'fileDone':
-              appendPDFRow(data.file, data.language);
-	          progressBar.style.width = `${data.progressPercent || 0}%`;
-	          break;
-	        case 'jobComplete':
-	          progressBar.style.width = '100%';
-	          successDiv.textContent  = `✔️ Embedded ${data.totalChunks} chunks in ${data.elapsed}s`;
-	          successDiv.classList.remove('hidden');
-	          cleanup();
-	          break;
-	        case 'error':
-	          throw new Error(data.message || 'server error');
-	      }
-	    });
-	  })
-	  .catch(err => {
-	    console.error(err);
-	    errorDiv.textContent = translations[userLang].uploadError;
-	    errorDiv.classList.remove('hidden');
-	    cleanup();
-	  });
+			fetch('/document/analyze', {
+				method: 'POST',
+				body: form,
+				headers: { 'Accept': 'text/event-stream' }
+			})
+				.then(resp => {
+					if (!resp.ok) throw new Error('upload failed');
+					streamSSE(resp.body.getReader(), (evt, json) => {
+						const data = json ? JSON.parse(json) : {};
+						console.log("SSE event:", evt, data);
+						if (!evt || evt === "") return;
 
-	  function cleanup() {
-	    spinner.classList.add('hidden');
-	    uploadBtn.disabled = false;
-	    document.getElementById('progressContainer').classList.add('hidden');
-	  }
-	}
+						switch (evt) {
+							case 'fileDone':
+								appendPDFRow(data.file, data.language);
+								progressBar.style.width = `${data.progressPercent || 0}%`;
+								break;
+							case 'jobComplete':
+								progressBar.style.width = '100%';
+								successDiv.textContent = `✔️ Embedded ${data.totalChunks} chunks in ${data.elapsed}s`;
+								successDiv.classList.remove('hidden');
+								cleanup();
+								break;
+							case 'error':
+								throw new Error(data.message || 'server error');
+						}
+					});
+				})
+				.catch(err => {
+					console.error(err);
+					errorDiv.textContent = translations[userLang].uploadError;
+					errorDiv.classList.remove('hidden');
+					cleanup();
+				});
 
-	// Pagination state
-	let allDocuments = [];
-	let currentPage = 1;
-	const DOCS_PER_PAGE = 10;
+			function cleanup() {
+				spinner.classList.add('hidden');
+				uploadBtn.disabled = false;
+				document.getElementById('progressContainer').classList.add('hidden');
+			}
+		}
 
-	function loadExistingDocs() {
-	  fetch('/document/list')
-	    .then(res => {
-	      if (!res.ok) throw new Error("Could not load existing docs");
-	      return res.json();
-	    })
-		.then(docs => {
-		  allDocuments = docs;
-		  currentPage = 1;
-		  renderDocumentPage();
-		})
-	    .catch(err => {
-	      console.error("Error loading existing docs:", err);
-	    });
-	}
+		// Pagination state
+		let allDocuments = [];
+		let currentPage = 1;
+		const DOCS_PER_PAGE = 10;
 
-	function renderDocumentPage() {
-	  const pdfList = document.getElementById("pdfList");
-	  pdfList.innerHTML = "";
+		function loadExistingDocs() {
+			fetch('/document/list')
+				.then(res => {
+					if (!res.ok) throw new Error("Could not load existing docs");
+					return res.json();
+				})
+				.then(docs => {
+					allDocuments = docs;
+					currentPage = 1;
+					renderDocumentPage();
+				})
+				.catch(err => {
+					console.error("Error loading existing docs:", err);
+				});
+		}
 
-	  const totalPages = Math.ceil(allDocuments.length / DOCS_PER_PAGE);
-	  const startIdx = (currentPage - 1) * DOCS_PER_PAGE;
-	  const endIdx = Math.min(startIdx + DOCS_PER_PAGE, allDocuments.length);
+		function renderDocumentPage() {
+			const pdfList = document.getElementById("pdfList");
+			pdfList.innerHTML = "";
 
-	  const pageDocuments = allDocuments.slice(startIdx, endIdx);
-	  pageDocuments.forEach(doc => appendPDFRow(doc.filename, doc.language));
+			const totalPages = Math.ceil(allDocuments.length / DOCS_PER_PAGE);
+			const startIdx = (currentPage - 1) * DOCS_PER_PAGE;
+			const endIdx = Math.min(startIdx + DOCS_PER_PAGE, allDocuments.length);
 
-	  // Update pagination controls
-	  updatePaginationControls(totalPages);
-	}
+			const pageDocuments = allDocuments.slice(startIdx, endIdx);
+			pageDocuments.forEach(doc => appendPDFRow(doc.filename, doc.language));
 
-	function updatePaginationControls(totalPages) {
-	  const paginationContainer = document.getElementById("documentPagination");
+			// Update pagination controls
+			updatePaginationControls(totalPages);
+		}
 
-	  if (totalPages <= 1) {
-	    paginationContainer.classList.add("hidden");
-	    return;
-	  }
+		function updatePaginationControls(totalPages) {
+			const paginationContainer = document.getElementById("documentPagination");
 
-	  paginationContainer.classList.remove("hidden");
+			if (totalPages <= 1) {
+				paginationContainer.classList.add("hidden");
+				return;
+			}
 
-	  const pageInfo = document.getElementById("pageInfo");
-	  const prevBtn = document.getElementById("prevPageBtn");
-	  const nextBtn = document.getElementById("nextPageBtn");
+			paginationContainer.classList.remove("hidden");
 
-	  const t = translations[userLang];
-	  pageInfo.textContent = `${t.page || "Page"} ${currentPage} ${t.of || "of"} ${totalPages}`;
+			const pageInfo = document.getElementById("pageInfo");
+			const prevBtn = document.getElementById("prevPageBtn");
+			const nextBtn = document.getElementById("nextPageBtn");
 
-	  prevBtn.disabled = currentPage === 1;
-	  nextBtn.disabled = currentPage === totalPages;
-	}
+			const t = translations[userLang];
+			pageInfo.textContent = `${t.page || "Page"} ${currentPage} ${t.of || "of"} ${totalPages}`;
 
-	function goToPreviousPage() {
-	  if (currentPage > 1) {
-	    currentPage--;
-	    renderDocumentPage();
-	  }
-	}
+			prevBtn.disabled = currentPage === 1;
+			nextBtn.disabled = currentPage === totalPages;
+		}
 
-	function goToNextPage() {
-	  const totalPages = Math.ceil(allDocuments.length / DOCS_PER_PAGE);
-	  if (currentPage < totalPages) {
-	    currentPage++;
-	    renderDocumentPage();
-	  }
-	}
+		function goToPreviousPage() {
+			if (currentPage > 1) {
+				currentPage--;
+				renderDocumentPage();
+			}
+		}
 
-	function appendPDFRow(fileName, languageCode) {
-	  const pdfList = document.getElementById("pdfList");
-	  const userUI = userLang;
-	  const langLabel = (langLabels[userUI] || {})[languageCode] || languageCode;
+		function goToNextPage() {
+			const totalPages = Math.ceil(allDocuments.length / DOCS_PER_PAGE);
+			if (currentPage < totalPages) {
+				currentPage++;
+				renderDocumentPage();
+			}
+		}
 
-	  const row = document.createElement("tr");
-	  row.dataset.langcode = languageCode;
+		function appendPDFRow(fileName, languageCode) {
+			const pdfList = document.getElementById("pdfList");
+			const userUI = userLang;
+			const langLabel = (langLabels[userUI] || {})[languageCode] || languageCode;
 
-	  row.innerHTML = `
+			const row = document.createElement("tr");
+			row.dataset.langcode = languageCode;
+
+			row.innerHTML = `
 	    <td class="filename-cell">${fileName}</td>
 	    <td>${langLabel}</td>
 	  `;
-	  pdfList.appendChild(row);
-	}
+			pdfList.appendChild(row);
+		}
 
-	function clearDocuments(anchorEl) {
-	  showDeletePopover(anchorEl, {
-	    title: translations[userLang].clearFiles,
-	    message: translations[userLang].confirmClearDocuments,
-	    onConfirm: async () => {
-	      const response = await fetch("/document/clearDocuments", { method: "POST" });
-	      if (!response.ok) throw new Error("Failed to clear documents");
-	      allDocuments = [];
-	      currentPage = 1;
-	      document.getElementById("pdfList").innerHTML = "";
-	      document.getElementById("documentPagination").classList.add("hidden");
-	      document.getElementById("success").textContent = translations[userLang].documentsCleared;
-	      document.getElementById("success").classList.remove("hidden");
-	    }
-	  });
-	}
+		function clearDocuments(anchorEl) {
+			showDeletePopover(anchorEl, {
+				title: translations[userLang].clearFiles,
+				message: translations[userLang].confirmClearDocuments,
+				onConfirm: async () => {
+					const response = await fetch("/document/clearDocuments", { method: "POST" });
+					if (!response.ok) throw new Error("Failed to clear documents");
+					allDocuments = [];
+					currentPage = 1;
+					document.getElementById("pdfList").innerHTML = "";
+					document.getElementById("documentPagination").classList.add("hidden");
+					document.getElementById("success").textContent = translations[userLang].documentsCleared;
+					document.getElementById("success").classList.remove("hidden");
+				}
+			});
+		}
 
-    function togglePane() {
-      const uploadSection = document.getElementById("uploadSection");
-      const toggleButton = document.getElementById("toggleButton");
-      uploadSection.classList.toggle("shrunk");
-      toggleButton.textContent = uploadSection.classList.contains("shrunk") ? ">" : "<";
-    }
+		function togglePane() {
+			const uploadSection = document.getElementById("uploadSection");
+			const toggleButton = document.getElementById("toggleButton");
+			uploadSection.classList.toggle("shrunk");
+			toggleButton.textContent = uploadSection.classList.contains("shrunk") ? ">" : "<";
+		}
 
-    function toggleThinkingDisplay(event) {
-      event.preventDefault();
-      showThinkingBlock = !showThinkingBlock;
-      const toggleLink = document.getElementById("toggleThinkingDisplay");
-      toggleLink.textContent = showThinkingBlock ? translations[userLang].toggleThinkingHide : translations[userLang].toggleThinkingShow;
-      if (currentThinkingMessageElement) {
-        if (showThinkingBlock) {
-          currentThinkingMessageElement.classList.remove("hide-thinking-message");
-        } else {
-          currentThinkingMessageElement.classList.add("hide-thinking-message");
-        }
-      }
-    }
+		function toggleThinkingDisplay(event) {
+			event.preventDefault();
+			showThinkingBlock = !showThinkingBlock;
+			const toggleLink = document.getElementById("toggleThinkingDisplay");
+			toggleLink.textContent = showThinkingBlock ? translations[userLang].toggleThinkingHide : translations[userLang].toggleThinkingShow;
+			if (currentThinkingMessageElement) {
+				if (showThinkingBlock) {
+					currentThinkingMessageElement.classList.remove("hide-thinking-message");
+				} else {
+					currentThinkingMessageElement.classList.add("hide-thinking-message");
+				}
+			}
+		}
 
-    // ===== Conversations: helpers =====
+		// ===== Conversations: helpers =====
 
-	function getChatDisplayTitle(id, title) {
-	  return title && title.trim() && title !== "..." ? title : (translations[userLang].newChat || "New Chat");
-	}
+		function getChatDisplayTitle(id, title) {
+			return title && title.trim() && title !== "..." ? title : (translations[userLang].newChat || "New Chat");
+		}
 
-	/** small helper to escape HTML for safety */
-	function escapeHtml(s) {
-	  return s
-	    .replace(/&/g, "&amp;")
-	    .replace(/</g, "&lt;")
-	    .replace(/>/g, "&gt;")
-	    .replace(/"/g, "&quot;")
-	    .replace(/'/g, "&#039;");
-	}
+		/** small helper to escape HTML for safety */
+		function escapeHtml(s) {
+			return s
+				.replace(/&/g, "&amp;")
+				.replace(/</g, "&lt;")
+				.replace(/>/g, "&gt;")
+				.replace(/"/g, "&quot;")
+				.replace(/'/g, "&#039;");
+		}
 
-	function createChatListItem(conversationId, displayTitle) {
-	  const li = document.createElement("li");
-	  li.className = "chat-list-item";
-	  li.dataset.cid = conversationId;
+		function createChatListItem(conversationId, displayTitle) {
+			const li = document.createElement("li");
+			li.className = "chat-list-item";
+			li.dataset.cid = conversationId;
 
-	  const safeTitle = escapeHtml(displayTitle || getChatDisplayTitle(conversationId));
+			const safeTitle = escapeHtml(displayTitle || getChatDisplayTitle(conversationId));
 
-	  li.innerHTML = `
+			li.innerHTML = `
 	    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
 	      <span class="chat-title" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; cursor:pointer;">
 	        ${safeTitle}
@@ -1406,606 +1759,618 @@
 	    </div>
 	  `;
 
-	  // Click the title to switch conversation
-	  li.querySelector('.chat-title').addEventListener('click', () => switchChat(conversationId));
+			// Click the title to switch conversation
+			li.querySelector('.chat-title').addEventListener('click', () => switchChat(conversationId));
 
-	  // Delete handler (stopPropagation so it won't trigger the switch)
-	  li.querySelector('.delete-conv-btn').addEventListener('click', (e) => {
-	    e.stopPropagation();
-	    const idToDelete = conversationId;
-	    const titleForUI = safeTitle;
+			// Delete handler (stopPropagation so it won't trigger the switch)
+			li.querySelector('.delete-conv-btn').addEventListener('click', (e) => {
+				e.stopPropagation();
+				const idToDelete = conversationId;
+				const titleForUI = safeTitle;
 
-	    showDeletePopover(e.currentTarget, {
-	      id: idToDelete,
-	      title: titleForUI,
-	      message: translations[userLang]?.confirmDeleteConversation,
-	      onConfirm: async () => {
-	        const resp = await fetch(`/document/conversations/${encodeURIComponent(idToDelete)}`, { method: 'DELETE' });
-	        if (!resp.ok) {
-	          if (resp.status === 404) throw new Error('Conversation not found (already deleted).');
-	          throw new Error('Failed to delete conversation');
-	        }
-	        // remove from list UI
-	        if (li && li.parentNode) li.parentNode.removeChild(li);
-	        // clear active conversation if necessary
-	        if (activeConversationId === idToDelete) {
-	          activeConversationId = null;
-	          const chatMessages = document.getElementById("chatMessages");
-	          if (chatMessages) chatMessages.innerHTML = '';
-	        }
-	      },
-	      onCancel: () => {
-	        // optional analytics or focus back to list
-	        const list = document.getElementById('chatList');
-	        if (list) list.focus();
-	      }
-	    });
-	  });
+				showDeletePopover(e.currentTarget, {
+					id: idToDelete,
+					title: titleForUI,
+					message: translations[userLang]?.confirmDeleteConversation,
+					onConfirm: async () => {
+						const resp = await fetch(`/document/conversations/${encodeURIComponent(idToDelete)}`, { method: 'DELETE' });
+						if (!resp.ok) {
+							if (resp.status === 404) throw new Error('Conversation not found (already deleted).');
+							throw new Error('Failed to delete conversation');
+						}
+						// remove from list UI
+						if (li && li.parentNode) li.parentNode.removeChild(li);
+						// clear active conversation if necessary
+						if (activeConversationId === idToDelete) {
+							activeConversationId = null;
+							const chatMessages = document.getElementById("chatMessages");
+							if (chatMessages) chatMessages.innerHTML = '';
+						}
+					},
+					onCancel: () => {
+						// optional analytics or focus back to list
+						const list = document.getElementById('chatList');
+						if (list) list.focus();
+					}
+				});
+			});
 
-	  return li;
-	}
+			return li;
+		}
 
-	function renderConversationList(conversations) {
-	  const list = document.getElementById("chatList");
-	  list.innerHTML = "";
+		function renderConversationList(conversations) {
+			const list = document.getElementById("chatList");
+			list.innerHTML = "";
 
-	  (conversations || []).forEach(item => {
-	    const id = (typeof item === "string") ? item : (item.id || item.conversationId || "");
-	    let title = (typeof item === "string") ? "" : (item.title || "");
-	    title = getChatDisplayTitle(id, title);
+			(conversations || []).forEach(item => {
+				const id = (typeof item === "string") ? item : (item.id || item.conversationId || "");
+				let title = (typeof item === "string") ? "" : (item.title || "");
+				title = getChatDisplayTitle(id, title);
 
-	    const li = createChatListItem(id, title);
-	    list.appendChild(li);
-	  });
+				const li = createChatListItem(id, title);
+				list.appendChild(li);
+			});
 
-	  highlightActiveConversation();
-	}
+			highlightActiveConversation();
+		}
 
-	// call this once on page load
-	function subscribeConversationEvents() {
-	  try {
-	    const es = new EventSource('/document/events');
+		// call this once on page load
+		function subscribeConversationEvents() {
+			try {
+				const es = new EventSource('/document/events');
 
-	    es.addEventListener('conversationTitleUpdated', (ev) => {
-	      try {
-	        const payload = JSON.parse(ev.data);
-	        const cid = payload.conversationId;
-	        const title = payload.title;
-	        updateConversationTitleInDOM(cid, title);
-	      } catch (err) {
-	        console.error('Bad event payload', err);
-	      }
-	    });
+				es.addEventListener('conversationTitleUpdated', (ev) => {
+					try {
+						const payload = JSON.parse(ev.data);
+						const cid = payload.conversationId;
+						const title = payload.title;
+						updateConversationTitleInDOM(cid, title);
+					} catch (err) {
+						console.error('Bad event payload', err);
+					}
+				});
 
-		es.addEventListener('conversationDeleted', (ev) => {
-		  try {
-		    const payload = JSON.parse(ev.data);
-		    const cid = payload.conversationId;
-		    const list = document.getElementById('chatList');
-		    if (!list) return;
-		    const li = list.querySelector(`[data-cid="${cid}"]`);
-		    if (li) li.remove();
-		    if (activeConversationId === cid) {
-		      activeConversationId = null;
-		      document.getElementById('chatMessages').innerHTML = '';
-		    }
-		  } catch (err) {
-		    console.error('Bad conversationDeleted payload', err);
-		  }
-		});
-		
-	    es.onopen = () => console.log('SSE connected');
-	    es.onerror = (e) => {
-	      // EventSource auto-reconnects; log for debugging.
-	      console.warn('SSE error', e);
-	    };
+				es.addEventListener('conversationDeleted', (ev) => {
+					try {
+						const payload = JSON.parse(ev.data);
+						const cid = payload.conversationId;
+						const list = document.getElementById('chatList');
+						if (!list) return;
+						const li = list.querySelector(`[data-cid="${cid}"]`);
+						if (li) li.remove();
+						if (activeConversationId === cid) {
+							activeConversationId = null;
+							document.getElementById('chatMessages').innerHTML = '';
+						}
+					} catch (err) {
+						console.error('Bad conversationDeleted payload', err);
+					}
+				});
 
-	    // store es if you ever want to close it: window.convEventSource = es;
-	  } catch (e) {
-	    console.error('SSE not supported', e);
-	  }
-	}
+				es.onopen = () => console.log('SSE connected');
+				es.onerror = (e) => {
+					// EventSource auto-reconnects; log for debugging.
+					console.warn('SSE error', e);
+				};
 
-	function updateConversationTitleInDOM(conversationId, title) {
-	  const list = document.getElementById('chatList');
-	  if (!list) return;
-	  const li = list.querySelector(`[data-cid="${conversationId}"]`);
-	  if (li) {
-	    const span = li.querySelector('.chat-title');
-	    if (span) {
-	      // Use the new animation function instead of direct text replacement
-	      animateTypewriterTitle(span, getChatDisplayTitle(conversationId, title)); // <--- Changed line
-	    }
-	  } else {
-	    // Not found — maybe list hasn't loaded. Optionally reload conversations.
-	    // loadConversations(); // uncomment if you prefer full refresh
-	    console.log('Updated title for non-visible conversation', conversationId, title);
-	  }
-	}
+				// store es if you ever want to close it: window.convEventSource = es;
+			} catch (e) {
+				console.error('SSE not supported', e);
+			}
+		}
 
-	
-	
-    function highlightActiveConversation() {
-      document.querySelectorAll("#chatList .chat-list-item").forEach(li => {
-        li.classList.toggle("active", li.dataset.cid === activeConversationId);
-      });
-    }
-
-	async function loadConversations() {
-	  try {
-	    const res = await fetch("/document/conversations");
-	    if (!res.ok) throw new Error("Failed to load conversations");
-	    const convs = await res.json(); // array of Conversation objects (or strings)
-	    renderConversationList(convs);
-
-	    // Auto-open first conversation if none active
-	    if (!activeConversationId) {
-	      if (convs && convs.length > 0) {
-	        const firstId = (typeof convs[0] === "string") ? convs[0] : (convs[0].id || convs[0].conversationId);
-	        if (firstId) await switchChat(firstId);
-	      } else {
-	        await newChat();
-	      }
-	    }
-	  } catch (e) {
-	    console.error("Failed to load conversations:", e);
-	  }
-	}
-
-	async function newChat() {
-	  try {
-	    const res = await fetch("/document/conversations", { method: "POST" });
-	    if (!res.ok) throw new Error("Failed to create conversation");
-	    const newId = await res.text();
-
-	    // Set active and add to list
-	    activeConversationId = newId;
-	    const list = document.getElementById("chatList");
-	    const li = createChatListItem(newId);
-	    li.classList.add("active");
-	    list.prepend(li);
-
-	    highlightActiveConversation();
-
-	    // Clear the viewport and open the new (empty) conversation
-	    document.getElementById("chatMessages").innerHTML = "";
-	    // Load messages (likely empty) so UI is consistent
-	    await switchChat(newId);
-	  } catch (e) {
-	    console.error("Failed to create conversation:", e);
-	  }
-	}
-
-	async function switchChat(conversationId) {
-	  try {
-	    if (!conversationId) return;
-
-	    activeConversationId = conversationId;
-	    highlightActiveConversation();
-
-	    console.log('Fetching messages for conversation:', conversationId);
-	    const res = await fetch(`/document/conversations/${encodeURIComponent(conversationId)}/messages`);
-	    if (!res.ok) {
-	      console.error('Failed to load messages, status:', res.status);
-	      throw new Error('Failed to load messages');
-	    }
-
-	    const messages = await res.json();
-	    console.log('Raw messages response for', conversationId, messages);
-
-	    const chatMessages = document.getElementById("chatMessages");
-	    chatMessages.innerHTML = "";
-
-	    // preserved thinking element for this conversation (may be undefined)
-	    const preserved = thinkingElementsByConversation[conversationId];
-
-	    // If there are no messages, prefer to show the preserved thinking element (if any),
-	    // otherwise show the "no messages" notice.
-	    if (!messages || messages.length === 0) {
-	      if (preserved) {
-	        // preserved is a wrapper; append it (no messages to order it against)
-	        chatMessages.appendChild(preserved);
-	        currentThinkingMessageElement = preserved.querySelector('.response-message') || null;
-	      } else {
-	        const notice = document.createElement('div');
-	        notice.className = 'no-messages-notice text-gray-500 p-2';
-	        notice.textContent = translations[userLang]?.noMessages || 'No messages in this conversation.';
-	        chatMessages.appendChild(notice);
-	      }
-	      return;
-	    }
-
-	    // Render existing messages first (so user messages exist in DOM)
-	    messages.forEach(msg => {
-	      const rawRole = (msg.role || msg.messageType || msg.author || msg.sender || "").toString().toLowerCase();
-	      let roleCategory;
-	      if (rawRole.indexOf('user') !== -1 || rawRole.indexOf('human') !== -1) roleCategory = 'user';
-	      else if (rawRole.indexOf('assist') !== -1 || rawRole.indexOf('bot') !== -1) roleCategory = 'assistant';
-	      else roleCategory = 'assistant';
-
-	      const text = extractMessageText(msg);
-
-	      if (roleCategory === "user") {
-	        appendUserMessage(text);
-	      } else {
-	        appendAssistantFinal(text);
-	      }
-	    });
-
-	    // AFTER rendering messages, insert preserved thinking element (if present)
-	    if (preserved) {
-	      const userMsgs = chatMessages.querySelectorAll('.flex.justify-end');
-	      if (userMsgs && userMsgs.length) {
-	        userMsgs[userMsgs.length - 1].insertAdjacentElement('afterend', preserved);
-	      } else {
-	        chatMessages.appendChild(preserved);
-	      }
-	      currentThinkingMessageElement = preserved.querySelector('.response-message') || null;
-	    }
-
-	    chatMessages.scrollTop = chatMessages.scrollHeight;
-	  } catch (e) {
-	    console.error("Error switching chat:", e);
-	    const chatMessages = document.getElementById("chatMessages");
-	    if (chatMessages) {
-	      const err = document.createElement('div');
-	      err.className = 'text-red-600 p-2';
-	      err.textContent = 'Failed to load conversation messages.';
-	      chatMessages.appendChild(err);
-	    }
-	  }
-	}
-
-
-	function removeNoMessagesNotice() {
-	  const chatMessages = document.getElementById("chatMessages");
-	  if (!chatMessages) return;
-	  const notice = chatMessages.querySelector('.no-messages-notice');
-	  if (notice) notice.remove();
-	}
+		function updateConversationTitleInDOM(conversationId, title) {
+			const list = document.getElementById('chatList');
+			if (!list) return;
+			const li = list.querySelector(`[data-cid="${conversationId}"]`);
+			if (li) {
+				const span = li.querySelector('.chat-title');
+				if (span) {
+					// Use the new animation function instead of direct text replacement
+					animateTypewriterTitle(span, getChatDisplayTitle(conversationId, title)); // <--- Changed line
+				}
+			} else {
+				// Not found — maybe list hasn't loaded. Optionally reload conversations.
+				// loadConversations(); // uncomment if you prefer full refresh
+				console.log('Updated title for non-visible conversation', conversationId, title);
+			}
+		}
 
 
 
-	function extractMessageText(msg) {
-	  if (!msg) return '';
+		function highlightActiveConversation() {
+			document.querySelectorAll("#chatList .chat-list-item").forEach(li => {
+				li.classList.toggle("active", li.dataset.cid === activeConversationId);
+			});
+		}
 
-	  // 0) explicit 'text' field (your example uses "text")
-	  if (typeof msg.text === 'string' && msg.text.trim()) return msg.text;
+		async function loadConversations() {
+			try {
+				const res = await fetch("/document/conversations");
+				if (!res.ok) throw new Error("Failed to load conversations");
+				const convs = await res.json(); // array of Conversation objects (or strings)
+				renderConversationList(convs);
 
-	  // 1) direct content field as string
-	  if (typeof msg.content === 'string' && msg.content.trim()) return msg.content;
+				// Auto-open first conversation if none active
+				if (!activeConversationId) {
+					if (convs && convs.length > 0) {
+						const firstId = (typeof convs[0] === "string") ? convs[0] : (convs[0].id || convs[0].conversationId);
+						if (firstId) await switchChat(firstId);
+					} else {
+						await newChat();
+					}
+				}
+			} catch (e) {
+				console.error("Failed to load conversations:", e);
+			}
+		}
 
-	  // 2) content might be an array (e.g. [{type:'text', text:'...'}, 'more'])
-	  if (Array.isArray(msg.content)) {
-	    try {
-	      return msg.content.map(p => {
-	        if (typeof p === 'string') return p;
-	        if (p && typeof p.text === 'string') return p.text;
-	        if (p && typeof p.content === 'string') return p.content;
-	        return JSON.stringify(p);
-	      }).join('\n\n');
-	    } catch (e) {
-	      return String(msg.content);
-	    }
-	  }
+		async function newChat() {
+			try {
+				const res = await fetch("/document/conversations", { method: "POST" });
+				if (!res.ok) throw new Error("Failed to create conversation");
+				const newId = await res.text();
 
-	  // 3) some libs return {content: {parts: [...]}} or {content: {text: "..."}} or {message: "..."}
-	  if (msg.content && typeof msg.content === 'object') {
-	    if (Array.isArray(msg.content.parts)) {
-	      return msg.content.parts.map(p => (typeof p === 'string' ? p : (p.text || p.content || JSON.stringify(p)))).join('\n\n');
-	    }
-	    if (typeof msg.content.text === 'string') return msg.content.text;
-	    if (typeof msg.content.content === 'string') return msg.content.content;
-	  }
+				// Set active and add to list
+				activeConversationId = newId;
+				const list = document.getElementById("chatList");
+				const li = createChatListItem(newId);
+				li.classList.add("active");
+				list.prepend(li);
 
-	  // 4) some shapes use msg.message or msg.body
-	  if (typeof msg.message === 'string') return msg.message;
-	  if (typeof msg.body === 'string') return msg.body;
+				highlightActiveConversation();
 
-	  // 5) maybe metadata holds text (rare)
-	  if (msg.metadata && typeof msg.metadata.text === 'string') return msg.metadata.text;
+				// Clear the viewport and open the new (empty) conversation
+				document.getElementById("chatMessages").innerHTML = "";
+				// Load messages (likely empty) so UI is consistent
+				await switchChat(newId);
+			} catch (e) {
+				console.error("Failed to create conversation:", e);
+			}
+		}
 
-	  // last resort: stringify small object
-	  try {
-	    return JSON.stringify(msg).slice(0, 1000);
-	  } catch (e) {
-	    return '';
-	  }
-	}
+		async function switchChat(conversationId) {
+			try {
+				if (!conversationId) return;
+
+				activeConversationId = conversationId;
+				highlightActiveConversation();
+
+				console.log('Fetching messages for conversation:', conversationId);
+				const res = await fetch(`/document/conversations/${encodeURIComponent(conversationId)}/messages`);
+				if (!res.ok) {
+					console.error('Failed to load messages, status:', res.status);
+					throw new Error('Failed to load messages');
+				}
+
+				const messages = await res.json();
+				console.log('Raw messages response for', conversationId, messages);
+
+				const chatMessages = document.getElementById("chatMessages");
+				chatMessages.innerHTML = "";
+
+				// preserved thinking element for this conversation (may be undefined)
+				const preserved = thinkingElementsByConversation[conversationId];
+
+				// If there are no messages, prefer to show the preserved thinking element (if any),
+				// otherwise show the "no messages" notice.
+				if (!messages || messages.length === 0) {
+					if (preserved) {
+						// preserved is a wrapper; append it (no messages to order it against)
+						chatMessages.appendChild(preserved);
+						currentThinkingMessageElement = preserved.querySelector('.response-message') || null;
+					} else {
+						const notice = document.createElement('div');
+						notice.className = 'no-messages-notice text-gray-500 p-2';
+						notice.textContent = translations[userLang]?.noMessages || 'No messages in this conversation.';
+						chatMessages.appendChild(notice);
+					}
+					return;
+				}
+
+				// Render existing messages first (so user messages exist in DOM)
+				messages.forEach(msg => {
+					const rawRole = (msg.role || msg.messageType || msg.author || msg.sender || "").toString().toLowerCase();
+					let roleCategory;
+					if (rawRole.indexOf('user') !== -1 || rawRole.indexOf('human') !== -1) roleCategory = 'user';
+					else if (rawRole.indexOf('assist') !== -1 || rawRole.indexOf('bot') !== -1) roleCategory = 'assistant';
+					else roleCategory = 'assistant';
+
+					const text = extractMessageText(msg);
+
+					if (roleCategory === "user") {
+						appendUserMessage(text);
+					} else {
+						appendAssistantFinal(text);
+					}
+				});
+
+				// AFTER rendering messages, insert preserved thinking element (if present)
+				if (preserved) {
+					const userMsgs = chatMessages.querySelectorAll('.flex.justify-end');
+					if (userMsgs && userMsgs.length) {
+						userMsgs[userMsgs.length - 1].insertAdjacentElement('afterend', preserved);
+					} else {
+						chatMessages.appendChild(preserved);
+					}
+					currentThinkingMessageElement = preserved.querySelector('.response-message') || null;
+				}
+
+				chatMessages.scrollTop = chatMessages.scrollHeight;
+			} catch (e) {
+				console.error("Error switching chat:", e);
+				const chatMessages = document.getElementById("chatMessages");
+				if (chatMessages) {
+					const err = document.createElement('div');
+					err.className = 'text-red-600 p-2';
+					err.textContent = 'Failed to load conversation messages.';
+					chatMessages.appendChild(err);
+				}
+			}
+		}
+
+
+		function removeNoMessagesNotice() {
+			const chatMessages = document.getElementById("chatMessages");
+			if (!chatMessages) return;
+			const notice = chatMessages.querySelector('.no-messages-notice');
+			if (notice) notice.remove();
+		}
+
+
+
+		function extractMessageText(msg) {
+			if (!msg) return '';
+
+			// 0) explicit 'text' field (your example uses "text")
+			if (typeof msg.text === 'string' && msg.text.trim()) return msg.text;
+
+			// 1) direct content field as string
+			if (typeof msg.content === 'string' && msg.content.trim()) return msg.content;
+
+			// 2) content might be an array (e.g. [{type:'text', text:'...'}, 'more'])
+			if (Array.isArray(msg.content)) {
+				try {
+					return msg.content.map(p => {
+						if (typeof p === 'string') return p;
+						if (p && typeof p.text === 'string') return p.text;
+						if (p && typeof p.content === 'string') return p.content;
+						return JSON.stringify(p);
+					}).join('\n\n');
+				} catch (e) {
+					return String(msg.content);
+				}
+			}
+
+			// 3) some libs return {content: {parts: [...]}} or {content: {text: "..."}} or {message: "..."}
+			if (msg.content && typeof msg.content === 'object') {
+				if (Array.isArray(msg.content.parts)) {
+					return msg.content.parts.map(p => (typeof p === 'string' ? p : (p.text || p.content || JSON.stringify(p)))).join('\n\n');
+				}
+				if (typeof msg.content.text === 'string') return msg.content.text;
+				if (typeof msg.content.content === 'string') return msg.content.content;
+			}
+
+			// 4) some shapes use msg.message or msg.body
+			if (typeof msg.message === 'string') return msg.message;
+			if (typeof msg.body === 'string') return msg.body;
+
+			// 5) maybe metadata holds text (rare)
+			if (msg.metadata && typeof msg.metadata.text === 'string') return msg.metadata.text;
+
+			// last resort: stringify small object
+			try {
+				return JSON.stringify(msg).slice(0, 1000);
+			} catch (e) {
+				return '';
+			}
+		}
 
 
 
 
-	function appendUserMessage(text) {
-	  // remove any "no messages" notice before adding real content
-	  removeNoMessagesNotice();
+		function appendUserMessage(text) {
+			// remove any "no messages" notice before adding real content
+			removeNoMessagesNotice();
 
-	  const chatMessages = document.getElementById("chatMessages");
-	  const userWrapper = document.createElement("div");
-	  userWrapper.className = "flex justify-end";
-	  const userMessage = document.createElement("div");
-	  userMessage.className = "bg-indigo-500 text-white p-4 rounded-lg max-w-md w-fit";
-	  userMessage.dir = userLang === "he" ? "rtl" : "ltr";
-	  userMessage.style.textAlign = userLang === "he" ? "right" : "left";
-	  userMessage.textContent = text;
-	  userWrapper.appendChild(userMessage);
-	  chatMessages.appendChild(userWrapper);
+			const chatMessages = document.getElementById("chatMessages");
+			const userWrapper = document.createElement("div");
+			userWrapper.className = "flex justify-end";
+			const userMessage = document.createElement("div");
+			userMessage.className = "bg-indigo-500 text-white p-4 rounded-lg max-w-md w-fit";
+			userMessage.dir = userLang === "he" ? "rtl" : "ltr";
+			userMessage.style.textAlign = userLang === "he" ? "right" : "left";
+			userMessage.textContent = text;
+			userWrapper.appendChild(userMessage);
+			chatMessages.appendChild(userWrapper);
 
-	  // keep viewport scrolled
-	  chatMessages.scrollTop = chatMessages.scrollHeight;
-	}
+			// keep viewport scrolled
+			chatMessages.scrollTop = chatMessages.scrollHeight;
+		}
 
 
-	function appendAssistantThinking() {
-	  // remove any "no messages" notice before showing thinking
-	  removeNoMessagesNotice();
+		function appendAssistantThinking() {
+			// remove any "no messages" notice before showing thinking
+			removeNoMessagesNotice();
 
-	  const chatMessages = document.getElementById("chatMessages");
-	  const enableCoT = document.getElementById("enableChainOfThought").checked;
+			const chatMessages = document.getElementById("chatMessages");
+			const enableCoT = document.getElementById("enableChainOfThought").checked;
 
-	  const responseWrapper = document.createElement("div");
-	  responseWrapper.className = "flex justify-start thinking-wrapper";
+			const responseWrapper = document.createElement("div");
+			responseWrapper.className = "flex justify-start thinking-wrapper";
 
-	  const responseMessage = document.createElement("div");
-	  responseMessage.className = "bg-gray-200 text-black rounded-lg w-fit whitespace-pre-wrap response-message is-thinking thinking-glow";
-	  if (!showThinkingBlock) responseMessage.classList.add("hide-thinking-message");
+			const responseMessage = document.createElement("div");
+			responseMessage.className = "bg-gray-200 text-black rounded-lg w-fit whitespace-pre-wrap response-message is-thinking thinking-glow";
+			if (!showThinkingBlock) responseMessage.classList.add("hide-thinking-message");
 
-	  // tag it with the conversation id so we can reattach later
-	  const cid = activeConversationId || "default";
-	  responseMessage.dataset.thinkingFor = cid;
+			// tag it with the conversation id so we can reattach later
+			const cid = activeConversationId || "default";
+			responseMessage.dataset.thinkingFor = cid;
 
-	  responseWrapper.appendChild(responseMessage);
+			responseWrapper.appendChild(responseMessage);
 
-	  // Try to insert AFTER the last user bubble. If none, append to end.
-	  const userMsgs = chatMessages.querySelectorAll('.flex.justify-end');
-	  if (userMsgs && userMsgs.length) {
-	    const lastUser = userMsgs[userMsgs.length - 1];
-	    lastUser.insertAdjacentElement('afterend', responseWrapper);
-	  } else {
-	    chatMessages.appendChild(responseWrapper);
-	  }
+			// Try to insert AFTER the last user bubble. If none, append to end.
+			const userMsgs = chatMessages.querySelectorAll('.flex.justify-end');
+			if (userMsgs && userMsgs.length) {
+				const lastUser = userMsgs[userMsgs.length - 1];
+				lastUser.insertAdjacentElement('afterend', responseWrapper);
+			} else {
+				chatMessages.appendChild(responseWrapper);
+			}
 
-	  // store element reference so switching away and back can reattach it
-	  thinkingElementsByConversation[cid] = responseWrapper;
-	  currentThinkingMessageElement = responseMessage;
+			// store element reference so switching away and back can reattach it
+			thinkingElementsByConversation[cid] = responseWrapper;
+			currentThinkingMessageElement = responseMessage;
 
-	  // Enhanced animated thinking for CoT mode
-	  if (enableCoT && showThinkingBlock) {
-	    const steps = userLang === 'he' ? [
-	      { icon: '🔍', text: 'מנתח את השאלה...' },
-	      { icon: '📚', text: 'סורק את ההקשר...' },
-	      { icon: '🤔', text: 'מעריך רלוונטיות...' },
-	      { icon: '✍️', text: 'מנסח תשובה...' }
-	    ] : [
-	      { icon: '🔍', text: 'Analyzing question...' },
-	      { icon: '📚', text: 'Scanning context...' },
-	      { icon: '🤔', text: 'Assessing relevance...' },
-	      { icon: '✍️', text: 'Formulating answer...' }
-	    ];
+			// Enhanced animated thinking for CoT mode
+			if (enableCoT && showThinkingBlock) {
+				const steps = userLang === 'he' ? [
+					{ icon: '🔍', text: 'מנתח את השאלה...' },
+					{ icon: '📚', text: 'סורק את ההקשר...' },
+					{ icon: '🤔', text: 'מעריך רלוונטיות...' },
+					{ icon: '✍️', text: 'מנסח תשובה...' }
+				] : [
+					{ icon: '🔍', text: 'Analyzing question...' },
+					{ icon: '📚', text: 'Scanning context...' },
+					{ icon: '🤔', text: 'Assessing relevance...' },
+					{ icon: '✍️', text: 'Formulating answer...' }
+				];
 
-	    responseMessage.classList.add("cot-thinking-active");
-	    responseMessage.dir = userLang === 'he' ? 'rtl' : 'ltr';
-	    responseMessage.style.textAlign = userLang === 'he' ? 'right' : 'left';
+				responseMessage.classList.add("cot-thinking-active");
+				responseMessage.dir = userLang === 'he' ? 'rtl' : 'ltr';
+				responseMessage.style.textAlign = userLang === 'he' ? 'right' : 'left';
 
-	    responseMessage.innerHTML = '<div class="cot-thinking-container"></div>';
-	    const container = responseMessage.querySelector('.cot-thinking-container');
+				responseMessage.innerHTML = '<div class="cot-thinking-container"></div>';
+				const container = responseMessage.querySelector('.cot-thinking-container');
 
-	    // Animate steps sequentially
-	    steps.forEach((step, index) => {
-	      setTimeout(() => {
-	        const stepEl = document.createElement('div');
-	        stepEl.className = 'cot-step';
-	        stepEl.innerHTML = `
+				// Animate steps sequentially
+				steps.forEach((step, index) => {
+					setTimeout(() => {
+						const stepEl = document.createElement('div');
+						stepEl.className = 'cot-step';
+						stepEl.innerHTML = `
 	          <span class="cot-step-icon">${step.icon}</span>
 	          <span class="cot-step-text">${step.text}</span>
 	        `;
-	        container.appendChild(stepEl);
+						container.appendChild(stepEl);
 
-	        // Mark previous step as completed
-	        if (index > 0) {
-	          const prevStep = container.children[index - 1];
-	          prevStep.classList.add('completed');
-	        }
-	      }, index * 800);  // 800ms between steps
-	    });
-	  } else {
-	    responseMessage.classList.remove("cot-thinking-active");
-	    responseMessage.removeAttribute('dir');
-	    responseMessage.style.textAlign = '';
-	    // Simple thinking indicator
-	    responseMessage.innerHTML = showThinkingBlock
-	      ? `<div class="thinking-indicator"><img src="images/logo.png" alt="Logo"><span>${translations[userLang].thinking}</span></div>`
-	      : "";
-	  }
+						// Mark previous step as completed
+						if (index > 0) {
+							const prevStep = container.children[index - 1];
+							prevStep.classList.add('completed');
+						}
+					}, index * 800);  // 800ms between steps
+				});
+			} else {
+				responseMessage.classList.remove("cot-thinking-active");
+				responseMessage.removeAttribute('dir');
+				responseMessage.style.textAlign = '';
+				// Simple thinking indicator
+				responseMessage.innerHTML = showThinkingBlock
+					? `<div class="thinking-indicator"><img src="images/logo.png" alt="Logo"><span>${translations[userLang].thinking}</span></div>`
+					: "";
+			}
 
-	  chatMessages.scrollTop = chatMessages.scrollHeight;
-	  return responseMessage;
-	}
-
-
-
-	function finalizeAssistantMessage(el, html) {
-	  // remove any "no messages" notice if final answer arrives
-	  removeNoMessagesNotice();
-
-	  // remove from stored thinking map (element may be somewhere else)
-	  const cid = (el && el.dataset && el.dataset.thinkingFor) || activeConversationId || "default";
-	  if (thinkingElementsByConversation[cid]) {
-	    delete thinkingElementsByConversation[cid];
-	  }
-
-	  el.classList.remove("hide-thinking-message", "is-thinking", "thinking-glow", "cot-thinking-active");
-	  el.classList.add("final-answer", "p-4");
-	  el.dir = userLang === "he" ? "rtl" : "ltr";
-	  el.style.textAlign = userLang === "he" ? "right" : "left";
-	  currentThinkingMessageElement = null;
-	  el.innerHTML = marked.parse(html);
-
-	  // Style citations after markdown parsing
-	  styleCitations(el);
-	}
-
-	function styleCitations(container) {
-	  // Find all paragraphs and text nodes that contain citation patterns
-	  const walker = document.createTreeWalker(
-	    container,
-	    NodeFilter.SHOW_TEXT,
-	    null
-	  );
-
-	  const nodesToReplace = [];
-	  let node;
-
-	  while (node = walker.nextNode()) {
-	    // Look for (Source: filename, Page X) pattern
-	    // Use a more specific pattern that handles filenames with parentheses
-	    const text = node.textContent;
-	    const citationPattern = /\(Source:\s*[^,]+,\s*Page\s+[^)]+\)/gi;
-
-	    if (citationPattern.test(text)) {
-	      nodesToReplace.push(node);
-	    }
-	  }
-
-	  // Replace text nodes with styled citations
-	  nodesToReplace.forEach(node => {
-	    const text = node.textContent;
-	    const citationPattern = /\(Source:\s*[^,]+,\s*Page\s+[^)]+\)/gi;
-	    const parts = text.split(citationPattern);
-	    const citations = text.match(citationPattern) || [];
-
-	    const fragment = document.createDocumentFragment();
-
-	    parts.forEach((part, index) => {
-	      if (part) {
-	        fragment.appendChild(document.createTextNode(part));
-	      }
-	      if (citations[index]) {
-	        const citationSpan = document.createElement('span');
-	        citationSpan.className = 'citation';
-	        citationSpan.textContent = citations[index];
-	        fragment.appendChild(citationSpan);
-	      }
-	    });
-
-	    node.parentNode.replaceChild(fragment, node);
-	  });
-	}
+			chatMessages.scrollTop = chatMessages.scrollHeight;
+			return responseMessage;
+		}
 
 
-	function appendAssistantFinal(text) {
-	  removeNoMessagesNotice();
 
-	  const wrapper = document.createElement("div");
-	  wrapper.className = "flex justify-start";
-	  const msg = document.createElement("div");
-	  msg.className = "bg-gray-200 text-black rounded-lg w-fit whitespace-pre-wrap response-message final-answer p-4";
-	  msg.dir = userLang === "he" ? "rtl" : "ltr";
-	  msg.style.textAlign = userLang === "he" ? "right" : "left";
-	  msg.innerHTML = marked.parse((text || "").toString());
-	  wrapper.appendChild(msg);
-	  document.getElementById("chatMessages").appendChild(wrapper);
+		function finalizeAssistantMessage(el, html) {
+			// remove any "no messages" notice if final answer arrives
+			removeNoMessagesNotice();
 
-	  // scroll down
-	  const chatMessages = document.getElementById("chatMessages");
-	  chatMessages.scrollTop = chatMessages.scrollHeight;
-	}
+			// remove from stored thinking map (element may be somewhere else)
+			const cid = (el && el.dataset && el.dataset.thinkingFor) || activeConversationId || "default";
+			if (thinkingElementsByConversation[cid]) {
+				delete thinkingElementsByConversation[cid];
+			}
+
+			el.classList.remove("hide-thinking-message", "is-thinking", "thinking-glow", "cot-thinking-active");
+			el.classList.add("final-answer", "p-4");
+			el.dir = userLang === "he" ? "rtl" : "ltr";
+			el.style.textAlign = userLang === "he" ? "right" : "left";
+			currentThinkingMessageElement = null;
+			el.innerHTML = marked.parse(html);
+
+			// Style citations after markdown parsing
+			styleCitations(el);
+		}
+
+		function styleCitations(container) {
+			// Find all paragraphs and text nodes that contain citation patterns
+			const walker = document.createTreeWalker(
+				container,
+				NodeFilter.SHOW_TEXT,
+				null
+			);
+
+			const nodesToReplace = [];
+			let node;
+
+			// Pattern for both English and Hebrew citations:
+			// English: (Source: filename, Page X)
+			// Hebrew: (מקור: filename, עמוד X)
+			const citationPattern = /\((Source|מקור):\s*[^,]+,\s*(Page|עמוד)\s+[^)]+\)/gi;
+
+			while (node = walker.nextNode()) {
+				const text = node.textContent;
+				if (citationPattern.test(text)) {
+					nodesToReplace.push(node);
+				}
+				// Reset regex lastIndex for next test
+				citationPattern.lastIndex = 0;
+			}
+
+			// Replace text nodes with styled citations
+			nodesToReplace.forEach(node => {
+				const text = node.textContent;
+				// The instruction provides a new regex variable `regex` for the loop, which is good practice
+				const regex = /\((Source|מקור):\s*[^,]+,\s*(Page|עמוד)\s+[^)]+\)/gi;
+
+				const fragment = document.createDocumentFragment();
+				let lastIndex = 0;
+				let match;
+
+				while ((match = regex.exec(text)) !== null) {
+					// Add text before the citation
+					if (match.index > lastIndex) {
+						fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+					}
+					// Add styled citation
+					const citationSpan = document.createElement('span');
+					citationSpan.className = 'citation';
+					citationSpan.textContent = match[0]; // match[0] is the full matched string
+					fragment.appendChild(citationSpan);
+					lastIndex = regex.lastIndex;
+				}
+				// Add remaining text after last citation
+				if (lastIndex < text.length) {
+					fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+				}
+
+				if (fragment.childNodes.length > 0) { // Only replace if there's content to replace with
+					node.parentNode.replaceChild(fragment, node);
+				}
+			});
+		}
 
 
-    function handleChatSubmit(event) {
-      event.preventDefault();
-      const chatInput = document.getElementById("chatInput");
-      const chatMessages = document.getElementById("chatMessages");
-      const question = chatInput.value.trim();
-      if (!question) return;
+		function appendAssistantFinal(text) {
+			removeNoMessagesNotice();
 
-      // Ensure we have an active conversation; if not, create one
-      const ensureConversation = activeConversationId
-        ? Promise.resolve(activeConversationId)
-        : fetch("/document/conversations", { method: "POST" })
-            .then(r => {
-              if (!r.ok) throw new Error("Failed to create conversation");
-              return r.text();
-            })
-            .then(id => {
-              activeConversationId = id;
-              // put it at the top of the list
-              const list = document.getElementById("chatList");
-              const li = createChatListItem(id);
-              li.classList.add("active");
-              list.prepend(li);
-              highlightActiveConversation();
-              return id;
-            });
+			const wrapper = document.createElement("div");
+			wrapper.className = "flex justify-start";
+			const msg = document.createElement("div");
+			msg.className = "bg-gray-200 text-black rounded-lg w-fit whitespace-pre-wrap response-message final-answer p-4";
+			msg.dir = userLang === "he" ? "rtl" : "ltr";
+			msg.style.textAlign = userLang === "he" ? "right" : "left";
+			msg.innerHTML = marked.parse((text || "").toString());
+			wrapper.appendChild(msg);
+			document.getElementById("chatMessages").appendChild(wrapper);
 
-      ensureConversation.then(() => {
-        appendUserMessage(question);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        chatInput.value = "";
+			// Style citations (for both English and Hebrew formats)
+			styleCitations(msg);
 
-        const filterByLanguage = document.getElementById("filterByLanguage").checked;
-        const enableCoT = document.getElementById("enableChainOfThought").checked;
-        const enableQueryRewrite = document.getElementById("enableQueryRewrite").checked;
-        const headers = {
-          "Content-Type": "text/plain",
-          "X-Chat-Language": userLang,
-          "X-Conversation-ID": activeConversationId,
-          "X-Filter-Language": filterByLanguage ? userLang : "all",
-          "X-Enable-CoT": enableCoT,
-          "X-Enable-Query-Rewrite": enableQueryRewrite
-        };
+			// scroll down
+			const chatMessages = document.getElementById("chatMessages");
+			chatMessages.scrollTop = chatMessages.scrollHeight;
+		}
 
-        const responseMessage = appendAssistantThinking();
 
-        let fullContent = "";
-        fetch("/document/query", {
-          method: "POST",
-          headers,
-          body: question,
-        })
-        .then(response => {
-          if (!response.ok) throw new Error("Failed to process question");
-          return response.body.getReader();
-        })
-        .then(reader => {
-          const decoder = new TextDecoder();
+		function handleChatSubmit(event) {
+			event.preventDefault();
+			const chatInput = document.getElementById("chatInput");
+			const chatMessages = document.getElementById("chatMessages");
+			const question = chatInput.value.trim();
+			if (!question) return;
 
-          function read() {
-            reader.read().then(({ done, value }) => {
-              if (done) {
-                // Extract THINKING section (supports both **THINKING:** and <think> formats)
-                let thinkContent = null;
-                let clean = fullContent;
+			// Ensure we have an active conversation; if not, create one
+			const ensureConversation = activeConversationId
+				? Promise.resolve(activeConversationId)
+				: fetch("/document/conversations", { method: "POST" })
+					.then(r => {
+						if (!r.ok) throw new Error("Failed to create conversation");
+						return r.text();
+					})
+					.then(id => {
+						activeConversationId = id;
+						// put it at the top of the list
+						const list = document.getElementById("chatList");
+						const li = createChatListItem(id);
+						li.classList.add("active");
+						list.prepend(li);
+						highlightActiveConversation();
+						return id;
+					});
 
-                // Try new format first: **THINKING:** ... **ANSWER:**
-                const thinkingMatch = fullContent.match(/\*\*THINKING:\*\*([\s\S]*?)\*\*ANSWER:\*\*/);
-                if (thinkingMatch) {
-                  thinkContent = thinkingMatch[1].trim();
-                  clean = fullContent.replace(/\*\*THINKING:\*\*[\s\S]*?\*\*ANSWER:\*\*/, "").trim();
-                } else {
-                  // Fallback to old format: <think>...</think>
-                  const oldThinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
-                  if (oldThinkMatch) {
-                    thinkContent = oldThinkMatch[1].trim();
-                    clean = fullContent.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-                  }
-                }
+			ensureConversation.then(() => {
+				appendUserMessage(question);
+				chatMessages.scrollTop = chatMessages.scrollHeight;
+				chatInput.value = "";
 
-                // Extract confidence if present
-                const confMatch = fullContent.match(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/i);
-                const confidence = confMatch ? confMatch[1].toUpperCase() : null;
+				const enableCoT = document.getElementById("enableChainOfThought").checked;
+				const enableQueryRewrite = document.getElementById("enableQueryRewrite").checked;
+				const headers = {
+					"Content-Type": "text/plain",
+					"X-Chat-Language": userLang,
+					"X-Conversation-ID": activeConversationId,
+					"X-Enable-CoT": enableCoT,
+					"X-Enable-Query-Rewrite": enableQueryRewrite
+				};
 
-                // Remove CONFIDENCE tag from clean content
-                clean = clean.replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/gi, "").trim();
+				const responseMessage = appendAssistantThinking();
 
-                // Build final HTML
-                let finalHTML = '';
+				let fullContent = "";
+				fetch("/document/query", {
+					method: "POST",
+					headers,
+					body: question,
+				})
+					.then(response => {
+						if (!response.ok) throw new Error("Failed to process question");
+						return response.body.getReader();
+					})
+					.then(reader => {
+						const decoder = new TextDecoder();
 
-                if (thinkContent && enableCoT) {
-                  const thinkLabel = userLang === 'he' ? 'תהליך חשיבה' : 'Thinking Process';
-                  const headerPadding = userLang === 'he' ? 'padding-right: 40px;' : 'padding-left: 40px;';
-                  const contentPadding = userLang === 'he' ? 'padding-right: 8px;' : 'padding-left: 8px;';
-                  finalHTML += `
+						function read() {
+							reader.read().then(({ done, value }) => {
+								if (done) {
+									// Extract THINKING section (supports both **THINKING:** and <think> formats)
+									let thinkContent = null;
+									let clean = fullContent;
+
+									// Try new format first: **THINKING:** ... **ANSWER:**
+									const thinkingMatch = fullContent.match(/\*\*THINKING:\*\*([\s\S]*?)\*\*ANSWER:\*\*/);
+									if (thinkingMatch) {
+										thinkContent = thinkingMatch[1].trim();
+										clean = fullContent.replace(/\*\*THINKING:\*\*[\s\S]*?\*\*ANSWER:\*\*/, "").trim();
+									} else {
+										// Fallback to old format: <think>...</think>
+										const oldThinkMatch = fullContent.match(/<think>([\s\S]*?)<\/think>/);
+										if (oldThinkMatch) {
+											thinkContent = oldThinkMatch[1].trim();
+											clean = fullContent.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+										}
+									}
+
+									// Extract confidence if present
+									const confMatch = fullContent.match(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW|NONE)\]/i);
+									const confidence = confMatch ? confMatch[1].toUpperCase() : null;
+
+									// Remove CONFIDENCE tag from clean content
+									clean = clean.replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW|NONE)\]/gi, "").trim();
+
+									// Build final HTML
+									let finalHTML = '';
+
+									if (thinkContent && enableCoT) {
+										const thinkLabel = userLang === 'he' ? 'תהליך חשיבה' : 'Thinking Process';
+										const headerPadding = userLang === 'he' ? 'padding-right: 40px;' : 'padding-left: 40px;';
+										const contentPadding = userLang === 'he' ? 'padding-right: 8px;' : 'padding-left: 8px;';
+										finalHTML += `
                     <div class="think-section collapsed" onclick="this.classList.toggle('collapsed')">
                       <div style="font-weight: 600; font-size: 15px; margin-bottom: 12px; ${headerPadding} color: #4F46E5;">
                         ${thinkLabel}
@@ -2013,541 +2378,541 @@
                       <div style="${contentPadding}">${thinkContent}</div>
                     </div>
                   `;
-                }
+									}
 
-                if (confidence) {
-                  finalHTML += `<div class="confidence-badge confidence-${confidence}">${confidence}</div>`;
-                }
+									if (confidence) {
+										finalHTML += `<div class="confidence-badge confidence-${confidence}">${confidence}</div>`;
 
-                finalHTML += clean;
+										// Add warning for LOW or NONE confidence
+										if (confidence === 'LOW') {
+											const warningText = userLang === 'he'
+												? '⚠️ <strong>אזהרה:</strong> רמת הביטחון בתשובה זו נמוכה. ייתכן שהמידע אינו מלא או מדויק.'
+												: '⚠️ <strong>Warning:</strong> This response has LOW confidence. The information may be incomplete or inaccurate.';
+											finalHTML += `<div class="confidence-warning warning-low">${warningText}</div>`;
+										} else if (confidence === 'NONE') {
+											const warningText = userLang === 'he'
+												? '⚠️ <strong>אזהרה:</strong> לא נמצא מידע רלוונטי במסמכים שהועלו. התשובה עשויה להיות לא מדויקת.'
+												: '⚠️ <strong>Warning:</strong> No relevant information was found in the uploaded documents. This response may not be accurate.';
+											finalHTML += `<div class="confidence-warning warning-none">${warningText}</div>`;
+										}
+									}
 
-                finalizeAssistantMessage(responseMessage, finalHTML);
-                return;
-              }
-              const chunk = decoder.decode(value, { stream: true });
-              fullContent += chunk;
+									finalHTML += clean;
 
-              // Show streaming content (excluding thinking sections and confidence tags)
-              let displayContent = fullContent
-                .replace(/\*\*THINKING:\*\*[\s\S]*?\*\*ANSWER:\*\*/, "")  // New format
-                .replace(/<think>[\s\S]*?<\/think>/g, "")                 // Old format
-                .replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/gi, "")
-                .trim();
+									finalizeAssistantMessage(responseMessage, finalHTML);
+									return;
+								}
+								const chunk = decoder.decode(value, { stream: true });
+								fullContent += chunk;
 
-              if (displayContent) {
-                responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
-                responseMessage.classList.add("final-answer", "p-4");
-                responseMessage.innerHTML = marked.parse(displayContent);
-              }
+								// Show streaming content (excluding thinking sections and confidence tags)
+								let displayContent = fullContent
+									.replace(/\*\*THINKING:\*\*[\s\S]*?\*\*ANSWER:\*\*/, "")  // New format
+									.replace(/<think>[\s\S]*?<\/think>/g, "")                 // Old format
+									.replace(/\[CONFIDENCE:\s*(HIGH|MEDIUM|LOW)\]/gi, "")
+									.trim();
 
-              // Scroll to bottom after DOM updates
-              requestAnimationFrame(() => {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-              });
-              read();
-            });
-          }
-          read();
-        })
-        .catch(() => {
-          responseMessage.innerHTML = translations[userLang].errorProcessing;
-          responseMessage.classList.remove("thinking-glow", "is-thinking", "hide-thinking-message");
-          responseMessage.classList.add("final-answer", "p-4");
-          currentThinkingMessageElement = null;
-        });
-      });
-    }
+								if (displayContent) {
+									responseMessage.classList.remove("is-thinking", "thinking-glow", "hide-thinking-message");
+									responseMessage.classList.add("final-answer", "p-4");
+									responseMessage.innerHTML = marked.parse(displayContent);
+								}
 
-	// New function for typewriter animation
-	function animateTypewriterTitle(spanElement, newTitle) {
-	  const cleanedTitle = getChatDisplayTitle(spanElement.dataset.cid, newTitle);
-	  
-	  spanElement.textContent = ''; // clear current text
-	  let i = 0;
-	  const speed = 50; // milliseconds per character
+								// Scroll to bottom after DOM updates
+								requestAnimationFrame(() => {
+									chatMessages.scrollTop = chatMessages.scrollHeight;
+								});
+								read();
+							});
+						}
+						read();
+					})
+					.catch(() => {
+						responseMessage.innerHTML = translations[userLang].errorProcessing;
+						responseMessage.classList.remove("thinking-glow", "is-thinking", "hide-thinking-message");
+						responseMessage.classList.add("final-answer", "p-4");
+						currentThinkingMessageElement = null;
+					});
+			});
+		}
 
-	  function type() {
-	    if (i < cleanedTitle.length) {
-	      spanElement.textContent += cleanedTitle.charAt(i);
-	      i++;
-	      setTimeout(type, speed);
-	    }
-	  }
+		// New function for typewriter animation
+		function animateTypewriterTitle(spanElement, newTitle) {
+			const cleanedTitle = getChatDisplayTitle(spanElement.dataset.cid, newTitle);
 
-	  type();
-	}
-	
-	const translations = {
-	  en: {
-	    title: "Document Analyzer",
-	    chooseFiles: "Select Documents:",
-	    upload: "Upload",
-	    clearFiles: "Clear Documents",
-	    toggleThinkingShow: "Show Thinking",
-	    toggleThinkingHide: "Hide Thinking",
-	    inputPlaceholder: "How can I help?",
-	    send: "Send",
-	    toggleLanguage: "Switch Language",
-	    uploadedDocuments: "Loaded Documents:",
-	    processing: "Processing documents...",
-	    headerFilename: "Filename",
-	    headerLang: "Lang",
-	    chatsTitle: "Chats",
-	    newChat: "New Chat",
-	    noMessages: "No messages in this conversation.",
-		confirmDeleteConversation: "Delete conversation?",
-		deleteFailed: "Failed to delete conversation.",
-		confirmDeleteBtn: "Delete",
-		cancelBtn: "Cancel",
-		confirmClearDocuments: "Are you sure you want to clear all documents? This action cannot be undone.",
-		documentsCleared: "Documents cleared successfully.",
-		selectFileError: "Please select at least one file.",
-		uploadError: "An error occurred while uploading the files.",
-		thinking: "Thinking...",
-		errorProcessing: "Error processing the question.",
-		loginWithGithub: "Sign in with GitHub",
-		logout: "Logout",
-		logoutConfirmTitle: "Logout",
-		logoutConfirmMessage: "Are you sure you want to log out?",
-		logoutFailed: "Failed to log out.",
-		filterByLanguage: "Search only in UI language documents",
-		enableChainOfThought: "Show reasoning process",
-		enableQueryRewrite: "Enable query rewrite",
-		page: "Page",
-		of: "of",
-		previous: "Previous",
-		next: "Next"
-	  },
-	  he: {
-	    title: "סייען המסמכים",
-	    chooseFiles: "בחר מסמכים:",
-	    upload: "העלה",
-	    clearFiles: "נקה מסמכים",
-	    toggleThinkingShow: "הצג חשיבה",
-	    toggleThinkingHide: "הסתר חשיבה",
-	    inputPlaceholder: "איך אפשר לעזור?",
-	    send: "שלח",
-	    toggleLanguage: "החלף שפה",
-	    uploadedDocuments: "מסמכים שנטענו:",
-	    processing: "מעבד מסמכים...",
-	    headerFilename: "שם קובץ",
-	    headerLang: "שפה",
-	    chatsTitle: "שיחות",
-	    newChat: "שיחה חדשה",
-	    noMessages: "אין הודעות בשיחה זו.",
-		confirmDeleteConversation: "האם למחוק את השיחה?",
-		deleteFailed: "נכשל בניסיון למחוק את השיחה.",
-		confirmDeleteBtn: "מחק",
-		cancelBtn: "ביטול",
-		confirmClearDocuments: "האם אתה בטוח שברצונך לנקות את כל המסמכים? פעולה זו אינה ניתנת לביטול.",
-		documentsCleared: "המסמכים נוקו בהצלחה.",
-		selectFileError: "אנא בחר לפחות קובץ אחד.",
-		uploadError: "אירעה שגיאה בעת העלאת הקבצים.",
-		thinking: "חושב...",
-		errorProcessing: "שגיאה בעיבוד השאלה.",
-		loginWithGithub: "התחבר עם GitHub",
-		logout: "התנתק",
-		logoutConfirmTitle: "התנתקות",
-		logoutConfirmMessage: "האם אתה בטוח שברצונך להתנתק?",
-		logoutFailed: "נכשל בניסיון להתנתק.",
-		filterByLanguage: "חפש רק במסמכים בשפת הממשק",
-		enableChainOfThought: "הצג תהליך חשיבה",
-		enableQueryRewrite: "אפשר שכתוב שאילתה",
-		page: "עמוד",
-		of: "מתוך",
-		previous: "הקודם",
-		next: "הבא"
-	  }
-	};
+			spanElement.textContent = ''; // clear current text
+			let i = 0;
+			const speed = 50; // milliseconds per character
+
+			function type() {
+				if (i < cleanedTitle.length) {
+					spanElement.textContent += cleanedTitle.charAt(i);
+					i++;
+					setTimeout(type, speed);
+				}
+			}
+
+			type();
+		}
+
+		const translations = {
+			en: {
+				title: "Document Analyzer",
+				chooseFiles: "Select Documents:",
+				upload: "Upload",
+				clearFiles: "Clear Documents",
+				toggleThinkingShow: "Show Thinking",
+				toggleThinkingHide: "Hide Thinking",
+				inputPlaceholder: "How can I help?",
+				send: "Send",
+				toggleLanguage: "Switch Language",
+				uploadedDocuments: "Loaded Documents:",
+				processing: "Processing documents...",
+				headerFilename: "Filename",
+				headerLang: "Lang",
+				chatsTitle: "Chats",
+				newChat: "New Chat",
+				noMessages: "No messages in this conversation.",
+				confirmDeleteConversation: "Delete conversation?",
+				deleteFailed: "Failed to delete conversation.",
+				confirmDeleteBtn: "Delete",
+				cancelBtn: "Cancel",
+				confirmClearDocuments: "Are you sure you want to clear all documents? This action cannot be undone.",
+				documentsCleared: "Documents cleared successfully.",
+				selectFileError: "Please select at least one file.",
+				uploadError: "An error occurred while uploading the files.",
+				thinking: "Thinking...",
+				errorProcessing: "Error processing the question.",
+				loginWithGithub: "Sign in with GitHub",
+				logout: "Logout",
+				logoutConfirmTitle: "Logout",
+				logoutConfirmMessage: "Are you sure you want to log out?",
+				logoutFailed: "Failed to log out.",
+				enableChainOfThought: "Apply Chain of Thought",
+				enableQueryRewrite: "Enable query rewrite",
+				page: "Page",
+				of: "of",
+				previous: "Previous",
+				next: "Next"
+			},
+			he: {
+				title: "חוקר המסמכים",
+				chooseFiles: "בחר מסמכים:",
+				upload: "העלה",
+				clearFiles: "נקה מסמכים",
+				toggleThinkingShow: "הצג חשיבה",
+				toggleThinkingHide: "הסתר חשיבה",
+				inputPlaceholder: "איך אפשר לעזור?",
+				send: "שלח",
+				toggleLanguage: "החלף שפה",
+				uploadedDocuments: "מסמכים שנטענו:",
+				processing: "מעבד מסמכים...",
+				headerFilename: "שם קובץ",
+				headerLang: "שפה",
+				chatsTitle: "שיחות",
+				newChat: "שיחה חדשה",
+				noMessages: "אין הודעות בשיחה זו.",
+				confirmDeleteConversation: "האם למחוק את השיחה?",
+				deleteFailed: "נכשל בניסיון למחוק את השיחה.",
+				confirmDeleteBtn: "מחק",
+				cancelBtn: "ביטול",
+				confirmClearDocuments: "האם אתה בטוח שברצונך לנקות את כל המסמכים? פעולה זו אינה ניתנת לביטול.",
+				documentsCleared: "המסמכים נוקו בהצלחה.",
+				selectFileError: "אנא בחר לפחות קובץ אחד.",
+				uploadError: "אירעה שגיאה בעת העלאת הקבצים.",
+				thinking: "חושב...",
+				errorProcessing: "שגיאה בעיבוד השאלה.",
+				loginWithGithub: "התחבר עם GitHub",
+				logout: "התנתק",
+				logoutConfirmTitle: "התנתקות",
+				logoutConfirmMessage: "האם אתה בטוח שברצונך להתנתק?",
+				logoutFailed: "נכשל בניסיון להתנתק.",
+				enableChainOfThought: "ניתוח מעמיק",
+				enableQueryRewrite: "אפשר שכתוב שאילתה",
+				page: "עמוד",
+				of: "מתוך",
+				previous: "הקודם",
+				next: "הבא"
+			}
+		};
 
 
-    function getUserLang() {
-      const urlLang = new URLSearchParams(window.location.search).get('lang');
-      if (urlLang && ['en', 'he'].includes(urlLang)) {
-        return urlLang;
-      }
-      const savedLang = localStorage.getItem('userLang');
-      if (savedLang && ['en', 'he'].includes(savedLang)) {
-        return savedLang;
-      }
-      return navigator.language.startsWith("he") ? "he" : "en";
-    }
+		function getUserLang() {
+			const urlLang = new URLSearchParams(window.location.search).get('lang');
+			if (urlLang && ['en', 'he'].includes(urlLang)) {
+				return urlLang;
+			}
+			const savedLang = localStorage.getItem('userLang');
+			if (savedLang && ['en', 'he'].includes(savedLang)) {
+				return savedLang;
+			}
+			return navigator.language.startsWith("he") ? "he" : "en";
+		}
 
-    let userLang = getUserLang();
+		let userLang = getUserLang();
 
-    function applyTranslations(lang) {
-      userLang = lang;
-      try { localStorage.setItem('userLang', userLang); } catch (e) {}
-	  const t = translations[lang];
+		function applyTranslations(lang) {
+			userLang = lang;
+			try { localStorage.setItem('userLang', userLang); } catch (e) { }
+			const t = translations[lang];
 
-      document.documentElement.lang = lang;
-      document.documentElement.dir = lang === "he" ? "rtl" : "ltr";
+			document.documentElement.lang = lang;
+			document.documentElement.dir = lang === "he" ? "rtl" : "ltr";
 
-      document.title = t.title;
-      document.querySelector("h1").textContent = t.title;
-      const titleRow = document.querySelector('.title-row');
-      if (titleRow) {
-        const iconEl = titleRow.querySelector('.title-icon');
-        const titleEl = titleRow.querySelector('h1');
-        // Use physical DOM order instead of relying on CSS dir
-        titleRow.style.flexDirection = 'row';
-        if (iconEl && titleEl && titleRow.firstElementChild !== titleEl) {
-          titleRow.insertBefore(titleEl, iconEl);
-        }
-        if (iconEl && titleEl && titleRow.firstElementChild !== iconEl) {
-          titleRow.insertBefore(iconEl, titleEl);
-        }
-      }
-      document.querySelector("label[for='sourceFile']").textContent = t.chooseFiles;
-      document.getElementById("uploadButton").textContent = t.upload;
-      document.querySelector("button[onclick='clearDocuments(this)']").textContent = t.clearFiles;
-	  document.getElementById("toggleThinkingDisplay").textContent =
-	    showThinkingBlock ? t.toggleThinkingHide : t.toggleThinkingShow;
-      document.getElementById("chatInput").placeholder = t.inputPlaceholder;
-      document.getElementById("sendButton").textContent = t.send;
-      document.getElementById("languageToggle").textContent = "🌐 " + t.toggleLanguage;
-	  document.getElementById("uploadedDocumentsTitle").textContent = t.uploadedDocuments;
-	  document.getElementById("processingText").textContent = t.processing;
-	  document.getElementById("filenameHeader").textContent  = t.headerFilename;
-	  document.getElementById("languageHeader").textContent = t.headerLang;
-	  document.getElementById("filterByLanguageLabel").textContent = t.filterByLanguage;
-	  document.getElementById("chainOfThoughtLabel").textContent = t.enableChainOfThought;
-	  document.getElementById("queryRewriteLabel").textContent = t.enableQueryRewrite;
+			document.title = t.title;
+			document.querySelector("h1").textContent = t.title;
+			const titleRow = document.querySelector('.title-row');
+			if (titleRow) {
+				const iconEl = titleRow.querySelector('.title-icon');
+				const titleEl = titleRow.querySelector('h1');
+				// Use physical DOM order instead of relying on CSS dir
+				titleRow.style.flexDirection = 'row';
+				if (iconEl && titleEl && titleRow.firstElementChild !== titleEl) {
+					titleRow.insertBefore(titleEl, iconEl);
+				}
+				if (iconEl && titleEl && titleRow.firstElementChild !== iconEl) {
+					titleRow.insertBefore(iconEl, titleEl);
+				}
+			}
+			document.querySelector("label[for='sourceFile']").textContent = t.chooseFiles;
+			document.getElementById("uploadButton").textContent = t.upload;
+			document.querySelector("button[onclick='clearDocuments(this)']").textContent = t.clearFiles;
+			document.getElementById("toggleThinkingDisplay").textContent =
+				showThinkingBlock ? t.toggleThinkingHide : t.toggleThinkingShow;
+			document.getElementById("chatInput").placeholder = t.inputPlaceholder;
+			document.getElementById("sendButton").textContent = t.send;
+			document.getElementById("languageToggle").textContent = "🌐 " + t.toggleLanguage;
+			document.getElementById("uploadedDocumentsTitle").textContent = t.uploadedDocuments;
+			document.getElementById("processingText").textContent = t.processing;
+			document.getElementById("filenameHeader").textContent = t.headerFilename;
+			document.getElementById("languageHeader").textContent = t.headerLang;
+			document.getElementById("chainOfThoughtLabel").textContent = t.enableChainOfThought;
+			document.getElementById("queryRewriteLabel").textContent = t.enableQueryRewrite;
 
-	  // Update pagination button text
-	  document.getElementById("prevPageText").textContent = t.previous;
-	  document.getElementById("nextPageText").textContent = t.next;
+			// Update pagination button text
+			document.getElementById("prevPageText").textContent = t.previous;
+			document.getElementById("nextPageText").textContent = t.next;
 
-	  // Update language labels in the docs table body
-	  document.querySelectorAll("#pdfList tr").forEach(row => {
-	    const langCode = row.dataset.langcode;
-	    if (!langCode) return;
-	    row.children[1].textContent =
-	      (langLabels[lang] || {})[langCode] || langCode;
-	  });
+			// Update language labels in the docs table body
+			document.querySelectorAll("#pdfList tr").forEach(row => {
+				const langCode = row.dataset.langcode;
+				if (!langCode) return;
+				row.children[1].textContent =
+					(langLabels[lang] || {})[langCode] || langCode;
+			});
 
-      // Update existing no-messages notice if present
-      const existingNotice = document.querySelector('.no-messages-notice');
-      if (existingNotice) existingNotice.textContent = t.noMessages || 'No messages in this conversation.';
+			// Update existing no-messages notice if present
+			const existingNotice = document.querySelector('.no-messages-notice');
+			if (existingNotice) existingNotice.textContent = t.noMessages || 'No messages in this conversation.';
 
-      // Chats header / button (do NOT overwrite items now that they're real IDs)
-      const chatsTitleEl = document.getElementById("chatsTitle");
-      const newChatBtn = document.getElementById("newChatBtn");
-      if (chatsTitleEl) chatsTitleEl.textContent = t.chatsTitle;
-      if (newChatBtn) newChatBtn.textContent = t.newChat;
+			// Chats header / button (do NOT overwrite items now that they're real IDs)
+			const chatsTitleEl = document.getElementById("chatsTitle");
+			const newChatBtn = document.getElementById("newChatBtn");
+			if (chatsTitleEl) chatsTitleEl.textContent = t.chatsTitle;
+			if (newChatBtn) newChatBtn.textContent = t.newChat;
 
-      // Update text direction and alignment of chat input
-      const chatInput = document.getElementById("chatInput");
-      chatInput.dir = lang === "he" ? "rtl" : "ltr";
-      chatInput.style.textAlign = lang === "he" ? "right" : "left";
-	  updateToggleButtonPosition(lang);
-    }
+			// Update text direction and alignment of chat input
+			const chatInput = document.getElementById("chatInput");
+			chatInput.dir = lang === "he" ? "rtl" : "ltr";
+			chatInput.style.textAlign = lang === "he" ? "right" : "left";
+			updateToggleButtonPosition(lang);
+		}
 
-	function updateToggleButtonPosition(lang) {
-	  const toggleButton = document.getElementById("toggleButton");
-	  if (lang === "he") {
-	    toggleButton.style.left = "-1rem";
-	    toggleButton.style.right = "auto";
-	  } else {
-	    toggleButton.style.right = "-1rem";
-	    toggleButton.style.left = "auto";
-	  }
-	}
+		function updateToggleButtonPosition(lang) {
+			const toggleButton = document.getElementById("toggleButton");
+			if (lang === "he") {
+				toggleButton.style.left = "-1rem";
+				toggleButton.style.right = "auto";
+			} else {
+				toggleButton.style.right = "-1rem";
+				toggleButton.style.left = "auto";
+			}
+		}
 
-    async function updateAuthUI() {
-      try {
-        const res = await fetch('/auth/status', { credentials: 'same-origin' });
-        const data = await res.json();
-        const isAuthed = !!data.authenticated;
-        const displayName = data.displayName || data.email || '';
+		async function updateAuthUI() {
+			try {
+				const res = await fetch('/auth/status', { credentials: 'same-origin' });
+				const data = await res.json();
+				const isAuthed = !!data.authenticated;
+				const displayName = data.displayName || data.email || '';
 
-        const authBtn = document.getElementById('authButton');
-        const welcome = document.getElementById('welcomeUser');
-        const controls = [
-          document.getElementById('sourceFile'),
-          document.getElementById('uploadButton'),
-          document.getElementById('newChatBtn'),
-          document.getElementById('sendButton'),
-          document.getElementById('chatInput'),
-          document.getElementById('clearDocsBtn')
-        ];
+				const authBtn = document.getElementById('authButton');
+				const welcome = document.getElementById('welcomeUser');
+				const controls = [
+					document.getElementById('sourceFile'),
+					document.getElementById('uploadButton'),
+					document.getElementById('newChatBtn'),
+					document.getElementById('sendButton'),
+					document.getElementById('chatInput'),
+					document.getElementById('clearDocsBtn')
+				];
 
-        if (isAuthed) {
-          if (authBtn) {
-            authBtn.href = '/logout';
-            authBtn.textContent = translations[userLang]?.logout || 'Logout';
-            authBtn.addEventListener('click', function(e) {
-              e.preventDefault();
-              // Confirm using the same popover UI used elsewhere
-              showDeletePopover(authBtn, {
-                title: translations[userLang]?.logoutConfirmTitle || 'Logout',
-                message: translations[userLang]?.logoutConfirmMessage || 'Are you sure you want to log out?',
-                confirmLabel: translations[userLang]?.logout || 'Logout',
-                cancelLabel: translations[userLang]?.cancelBtn || 'Cancel',
-                onConfirm: async () => {
-                  try {
-                    const resp = await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
-                    if (!resp.ok) throw new Error('Logout failed');
-                  } catch (err) {
-                    alert((translations[userLang] && translations[userLang].logoutFailed) || 'Failed to log out.');
-                  } finally {
-                    window.location.href = '/login.html';
-                  }
-                }
-              });
-            });
-          }
-          controls.forEach(el => { if (el) el.disabled = false; });
-          if (welcome) welcome.textContent = userLang === 'he' ? `ברוך הבא, ${displayName}` : `Welcome, ${displayName}`;
-        } else {
-          if (authBtn) {
-            authBtn.href = '/login';
-            authBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18 .58 .688 .481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg> ' + (translations[userLang]?.loginWithGithub || 'Sign in with GitHub');
-          }
-          controls.forEach(el => { if (el) el.disabled = true; });
-          if (welcome) welcome.textContent = '';
-        }
-      } catch (e) {
-        console.warn('auth status check failed', e);
-      }
-    }
+				if (isAuthed) {
+					if (authBtn) {
+						authBtn.href = '/logout';
+						authBtn.textContent = translations[userLang]?.logout || 'Logout';
+						authBtn.addEventListener('click', function (e) {
+							e.preventDefault();
+							// Confirm using the same popover UI used elsewhere
+							showDeletePopover(authBtn, {
+								title: translations[userLang]?.logoutConfirmTitle || 'Logout',
+								message: translations[userLang]?.logoutConfirmMessage || 'Are you sure you want to log out?',
+								confirmLabel: translations[userLang]?.logout || 'Logout',
+								cancelLabel: translations[userLang]?.cancelBtn || 'Cancel',
+								onConfirm: async () => {
+									try {
+										const resp = await fetch('/logout', { method: 'POST', credentials: 'same-origin' });
+										if (!resp.ok) throw new Error('Logout failed');
+									} catch (err) {
+										alert((translations[userLang] && translations[userLang].logoutFailed) || 'Failed to log out.');
+									} finally {
+										window.location.href = '/login.html';
+									}
+								}
+							});
+						});
+					}
+					controls.forEach(el => { if (el) el.disabled = false; });
+					if (welcome) welcome.textContent = userLang === 'he' ? `ברוך הבא, ${displayName}` : `Welcome, ${displayName}`;
+				} else {
+					if (authBtn) {
+						authBtn.href = '/login';
+						authBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18 .58 .688 .481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg> ' + (translations[userLang]?.loginWithGithub || 'Sign in with GitHub');
+					}
+					controls.forEach(el => { if (el) el.disabled = true; });
+					if (welcome) welcome.textContent = '';
+				}
+			} catch (e) {
+				console.warn('auth status check failed', e);
+			}
+		}
 
-	document.addEventListener("DOMContentLoaded", () => {
-	  const initialLang = getUserLang();
-	  applyTranslations(initialLang);
-	  loadExistingDocs();
-	  updateAuthUI();
+		document.addEventListener("DOMContentLoaded", () => {
+			const initialLang = getUserLang();
+			applyTranslations(initialLang);
+			loadExistingDocs();
+			updateAuthUI();
 
-      // Enter to send
-      document.getElementById("chatInput").addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          e.target.closest("form").requestSubmit();
-        }
-      });
+			// Enter to send
+			document.getElementById("chatInput").addEventListener("keydown", (e) => {
+				if (e.key === "Enter" && !e.shiftKey) {
+					e.preventDefault();
+					e.target.closest("form").requestSubmit();
+				}
+			});
 
-	  document.getElementById("languageToggle").addEventListener("click", (e) => {
-	    e.preventDefault();
-	    const toggledLang = userLang === "he" ? "en" : "he";
-	    applyTranslations(toggledLang);
-	    updateAuthUI();
-	  });
+			document.getElementById("languageToggle").addEventListener("click", (e) => {
+				e.preventDefault();
+				const toggledLang = userLang === "he" ? "en" : "he";
+				applyTranslations(toggledLang);
+				updateAuthUI();
+			});
 
-      // New Chat button → real backend POST
-      const btn = document.getElementById("newChatBtn");
-      if (btn) btn.addEventListener("click", newChat);
+			// New Chat button → real backend POST
+			const btn = document.getElementById("newChatBtn");
+			if (btn) btn.addEventListener("click", newChat);
 
-      // Load conversations from backend; creates one if none exist
-      loadConversations();
-	  subscribeConversationEvents();
+			// Load conversations from backend; creates one if none exist
+			loadConversations();
+			subscribeConversationEvents();
 
-	  const showUploadBtn = document.getElementById('showUploadBtn');
-	  const showChatBtn = document.getElementById('showChatBtn');
-	  const mobileNav = document.querySelector('.mobile-nav');
-	  const overlay = document.getElementById('mobileOverlay');
-	  const drawer = document.getElementById('mobileDrawer');
-	  const hamburgerBtn = document.getElementById('hamburgerFab');
-	  const drawerCloseBtn = document.getElementById('drawerCloseBtn');
-	  const uploadSectionEl = document.getElementById('uploadSection');
-	  const drawerContent = document.getElementById('drawerContent');
-	  const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+			const showUploadBtn = document.getElementById('showUploadBtn');
+			const showChatBtn = document.getElementById('showChatBtn');
+			const mobileNav = document.querySelector('.mobile-nav');
+			const overlay = document.getElementById('mobileOverlay');
+			const drawer = document.getElementById('mobileDrawer');
+			const hamburgerBtn = document.getElementById('hamburgerFab');
+			const drawerCloseBtn = document.getElementById('drawerCloseBtn');
+			const uploadSectionEl = document.getElementById('uploadSection');
+			const drawerContent = document.getElementById('drawerContent');
+			const uploadPlaceholder = document.getElementById('uploadPlaceholder');
 
-	  function moveUploadIntoDrawer() {
-	    if (!drawerContent.contains(uploadSectionEl)) {
-	      uploadPlaceholder.after(uploadSectionEl);
-	      drawerContent.appendChild(uploadSectionEl);
-	      uploadSectionEl.classList.add('inside-drawer');
-	    }
-	  }
-	  function moveUploadBackToPage() {
-	    if (drawerContent.contains(uploadSectionEl)) {
-	      drawerContent.removeChild(uploadSectionEl);
-	      uploadPlaceholder.after(uploadSectionEl);
-	      uploadSectionEl.classList.remove('inside-drawer');
-	    }
-	  }
+			function moveUploadIntoDrawer() {
+				if (!drawerContent.contains(uploadSectionEl)) {
+					uploadPlaceholder.after(uploadSectionEl);
+					drawerContent.appendChild(uploadSectionEl);
+					uploadSectionEl.classList.add('inside-drawer');
+				}
+			}
+			function moveUploadBackToPage() {
+				if (drawerContent.contains(uploadSectionEl)) {
+					drawerContent.removeChild(uploadSectionEl);
+					uploadPlaceholder.after(uploadSectionEl);
+					uploadSectionEl.classList.remove('inside-drawer');
+				}
+			}
 
-	  function openDrawer() {
-	    overlay.style.display = 'block';
-	    drawer.style.display = 'block';
-	    requestAnimationFrame(() => {
-	      overlay.classList.add('visible');
-	      drawer.classList.add('open');
-	    });
-	  }
-	  function closeDrawer() {
-	    overlay.classList.remove('visible');
-	    drawer.classList.remove('open');
-	    setTimeout(() => { overlay.style.display = 'none'; drawer.style.display = 'none'; }, 220);
-	  }
+			function openDrawer() {
+				overlay.style.display = 'block';
+				drawer.style.display = 'block';
+				requestAnimationFrame(() => {
+					overlay.classList.add('visible');
+					drawer.classList.add('open');
+				});
+			}
+			function closeDrawer() {
+				overlay.classList.remove('visible');
+				drawer.classList.remove('open');
+				setTimeout(() => { overlay.style.display = 'none'; drawer.style.display = 'none'; }, 220);
+			}
 
-	  function updateMobileVisibility() {
-	    const isMobile = window.matchMedia('(max-width: 640px)').matches;
-	    if (isMobile) {
-	      if (hamburgerBtn) hamburgerBtn.style.display = 'flex';
-	      moveUploadIntoDrawer();
-	      document.querySelector('.chat-section').classList.remove('mobile-hidden');
-	    } else {
-	      if (hamburgerBtn) hamburgerBtn.style.display = 'none';
-	      closeDrawer();
-	      moveUploadBackToPage();
-	      document.querySelector('.chat-section').classList.remove('mobile-hidden');
-	    }
-	  }
-	  updateMobileVisibility();
-	  window.addEventListener('resize', updateMobileVisibility);
+			function updateMobileVisibility() {
+				const isMobile = window.matchMedia('(max-width: 640px)').matches;
+				if (isMobile) {
+					if (hamburgerBtn) hamburgerBtn.style.display = 'flex';
+					moveUploadIntoDrawer();
+					document.querySelector('.chat-section').classList.remove('mobile-hidden');
+				} else {
+					if (hamburgerBtn) hamburgerBtn.style.display = 'none';
+					closeDrawer();
+					moveUploadBackToPage();
+					document.querySelector('.chat-section').classList.remove('mobile-hidden');
+				}
+			}
+			updateMobileVisibility();
+			window.addEventListener('resize', updateMobileVisibility);
 
-	  if (hamburgerBtn) hamburgerBtn.addEventListener('click', () => { moveUploadIntoDrawer(); openDrawer(); });
-	  if (drawerCloseBtn) drawerCloseBtn.addEventListener('click', closeDrawer);
-	  if (overlay) overlay.addEventListener('click', closeDrawer);
-	});
-  </script>
-  </head>
+			if (hamburgerBtn) hamburgerBtn.addEventListener('click', () => { moveUploadIntoDrawer(); openDrawer(); });
+			if (drawerCloseBtn) drawerCloseBtn.addEventListener('click', closeDrawer);
+			if (overlay) overlay.addEventListener('click', closeDrawer);
+		});
+	</script>
+</head>
 
-  <body class="bg-gray-100 h-full flex flex-col overflow-auto">
-    <div class="flex-container">
-      <div id="mobileOverlay" class="mobile-overlay" style="display:none"></div>
-      <div id="mobileDrawer" class="mobile-drawer" style="display:none">
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem 1rem; border-bottom:1px solid #e5e7eb; position:sticky; top:0; background:#fff; z-index:1;">
-          <div class="title-row" id="drawerHeaderTitle">
-            <img src="images/Icon.png" alt="App Icon" class="title-icon">
-            <h1>סייען המסמכים</h1>
-          </div>
-          <button id="drawerCloseBtn" aria-label="Close" style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:0.5rem; background:#fff">✕</button>
-        </div>
-        <div id="drawerContent" style="padding:0.75rem 1rem"></div>
-      </div>
-      <div id="uploadPlaceholder" style="display:none"></div>
-      <div id="uploadSection" class="flex-shrink-0">
-        <div id="toggleButton" onclick="togglePane()">&lt;</div>
-        <div class="title-row">
-          <img src="images/Icon.png" alt="App Icon" class="title-icon">
-          <h1>סייען המסמכים</h1>
-        </div>
-        <div id="welcomeUser" class="text-sm text-gray-600 mt-1"></div>
-        <div id="chatsSection" class="mt-4">
-          <h2 id="chatsTitle" class="text-lg font-semibold text-right">שיחות</h2>
-          <ul id="chatList" aria-label="Chats"></ul>
-          <button type="button" id="newChatBtn" class="mt-2">שיחה חדשה</button>
-		  <div class="chat-list-divider"></div>
-        </div>
-        <form onsubmit="uploadPDF(event)" class="w-full">
-          <label for="sourceFile" class="block text-right">בחר מסמכים:</label>
-          <input type="file" id="sourceFile" multiple onchange="handleFileSelection()" required />
-          <button type="submit" id="uploadButton">Upload</button>
-          <div id="progressContainer" class="hidden mt-2">
-            <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div id="progressBar" class="h-full bg-indigo-500" style="width: 0%"></div>
-            </div>
-          </div>
+<body class="bg-gray-100 h-full flex flex-col overflow-auto">
+	<div class="flex-container">
+		<div id="mobileOverlay" class="mobile-overlay" style="display:none"></div>
+		<div id="mobileDrawer" class="mobile-drawer" style="display:none">
+			<div
+				style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem 1rem; border-bottom:1px solid #e5e7eb; position:sticky; top:0; background:#fff; z-index:1;">
+				<div class="title-row" id="drawerHeaderTitle">
+					<img src="images/Icon.png" alt="App Icon" class="title-icon">
+					<h1>חוקר המסמכים</h1>
+				</div>
+				<button id="drawerCloseBtn" aria-label="Close"
+					style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:0.5rem; background:#fff">✕</button>
+			</div>
+			<div id="drawerContent" style="padding:0.75rem 1rem"></div>
+		</div>
+		<div id="uploadPlaceholder" style="display:none"></div>
+		<div id="uploadSection" class="flex-shrink-0">
+			<div id="toggleButton" onclick="togglePane()">&lt;</div>
+			<div class="title-row">
+				<img src="images/Icon.png" alt="App Icon" class="title-icon">
+				<h1>חוקר המסמכים</h1>
+			</div>
+			<div id="welcomeUser" class="text-sm text-gray-600 mt-1"></div>
+			<div id="chatsSection" class="mt-4">
+				<h2 id="chatsTitle" class="text-lg font-semibold text-right">שיחות</h2>
+				<ul id="chatList" aria-label="Chats"></ul>
+				<button type="button" id="newChatBtn" class="mt-2">שיחה חדשה</button>
+				<div class="chat-list-divider"></div>
+			</div>
+			<form onsubmit="uploadPDF(event)" class="w-full">
+				<label for="sourceFile" class="block text-right">בחר מסמכים:</label>
+				<input type="file" id="sourceFile" multiple onchange="handleFileSelection()" required />
+				<button type="submit" id="uploadButton">Upload</button>
+				<div id="progressContainer" class="hidden mt-2">
+					<div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+						<div id="progressBar" class="h-full bg-indigo-500" style="width: 0%"></div>
+					</div>
+				</div>
 
-		  <div id="uploadSpinner" class="hidden flex items-center justify-center mt-2">
-		    <svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-		      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-		      <path class="opacity-75" fill="currentColor"
-		        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-		    </svg>
-			<span id="processingText" class="ml-2 text-sm text-gray-700"></span>
-		  </div>
+				<div id="uploadSpinner" class="hidden flex items-center justify-center mt-2">
+					<svg class="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+						viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+						</circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+					</svg>
+					<span id="processingText" class="ml-2 text-sm text-gray-700"></span>
+				</div>
 
-          <div id="error" class="hidden"></div>
-          <div id="success" class="hidden"></div>
-        </form>
+				<div id="error" class="hidden"></div>
+				<div id="success" class="hidden"></div>
+			</form>
 
-        <div class="mt-4 w-full">
-          <h2 id="uploadedDocumentsTitle" class="text-lg font-semibold mb-2 text-right">מסמכים שנטענו:</h2>
-		  <div class="pdf-table-wrapper">
-		  <table id="pdfTable" class="w-full border border-gray-300">
-			<colgroup>
-			  <col style="width: 70%;">
-			  <col style="width: 30%;">
-			</colgroup>
-		    <thead>
-		      <tr>
-				<th id="filenameHeader"  class="p-2">Filename</th>
-				<th id="languageHeader" class="p-2">Lang</th>
-		      </tr>
-		    </thead>
-		    <tbody id="pdfList"></tbody>
-		  </table>
-		  </div>
+			<div class="mt-4 w-full">
+				<h2 id="uploadedDocumentsTitle" class="text-lg font-semibold mb-2 text-right">מסמכים שנטענו:</h2>
+				<div class="pdf-table-wrapper">
+					<table id="pdfTable" class="w-full border border-gray-300">
+						<colgroup>
+							<col style="width: 70%;">
+							<col style="width: 30%;">
+						</colgroup>
+						<thead>
+							<tr>
+								<th id="filenameHeader" class="p-2">Filename</th>
+								<th id="languageHeader" class="p-2">Lang</th>
+							</tr>
+						</thead>
+						<tbody id="pdfList"></tbody>
+					</table>
+				</div>
 
-		  <!-- Pagination Controls -->
-		  <div id="documentPagination" class="hidden mt-3 flex items-center justify-between text-sm">
-		    <button
-		      id="prevPageBtn"
-		      onclick="goToPreviousPage()"
-		      class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-		    >
-		      ← <span id="prevPageText">Previous</span>
-		    </button>
-		    <span id="pageInfo" class="text-gray-700 font-medium">Page 1 of 1</span>
-		    <button
-		      id="nextPageBtn"
-		      onclick="goToNextPage()"
-		      class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-		    >
-		      <span id="nextPageText">Next</span> →
-		    </button>
-		  </div>
+				<!-- Pagination Controls -->
+				<div id="documentPagination" class="hidden mt-3 flex items-center justify-between text-sm">
+					<button id="prevPageBtn" onclick="goToPreviousPage()"
+						class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed">
+						← <span id="prevPageText">Previous</span>
+					</button>
+					<span id="pageInfo" class="text-gray-700 font-medium">Page 1 of 1</span>
+					<button id="nextPageBtn" onclick="goToNextPage()"
+						class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed">
+						<span id="nextPageText">Next</span> →
+					</button>
+				</div>
 
-          <div class="mt-3 mb-2 space-y-2">
-            <label class="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" id="filterByLanguage" class="w-4 h-4 cursor-pointer">
-              <span id="filterByLanguageLabel">חפש רק במסמכים בשפת הממשק</span>
-            </label>
+				<div class="mt-3 mb-2 space-y-2">
+					<label class="flex items-center gap-2 text-sm cursor-pointer" title="Show AI reasoning process">
+						<input type="checkbox" id="enableChainOfThought" class="w-4 h-4 cursor-pointer">
+						<span id="chainOfThoughtLabel">הצג תהליך חשיבה</span>
+					</label>
 
-            <label class="flex items-center gap-2 text-sm cursor-pointer" title="Show AI reasoning process">
-              <input type="checkbox" id="enableChainOfThought" class="w-4 h-4 cursor-pointer">
-              <span id="chainOfThoughtLabel">הצג תהליך חשיבה</span>
-            </label>
+					<label class="flex items-center gap-2 text-sm cursor-pointer"
+						title="Rewrite query for better retrieval">
+						<input type="checkbox" id="enableQueryRewrite" class="w-4 h-4 cursor-pointer" checked>
+						<span id="queryRewriteLabel">Enable query rewrite</span>
+					</label>
+				</div>
 
-            <label class="flex items-center gap-2 text-sm cursor-pointer" title="Rewrite query for better retrieval">
-              <input type="checkbox" id="enableQueryRewrite" class="w-4 h-4 cursor-pointer" checked>
-              <span id="queryRewriteLabel">Enable query rewrite</span>
-            </label>
-          </div>
+				<button type="button" id="clearDocsBtn" onclick="clearDocuments(this)"
+					class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
+					נקה מסמכים
+				</button>
 
-          <button type="button" id="clearDocsBtn" onclick="clearDocuments(this)" class="mt-2 bg-red-600 hover:bg-red-700 text-white w-full py-2 rounded">
-            נקה מסמכים
-          </button>
+				<a id="authButton" href="/oauth2/authorization/github"
+					class="mt-2 inline-flex items-center justify-center gap-2 bg-gray-900 text-white w-full py-2 rounded hover:bg-black transition">
+					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+						<path fill-rule="evenodd"
+							d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18 .58 .688 .481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z"
+							clip-rule="evenodd" />
+					</svg>
+					<span>Sign in with GitHub</span>
+				</a>
+			</div>
 
-          <a id="authButton" href="/oauth2/authorization/github" class="mt-2 inline-flex items-center justify-center gap-2 bg-gray-900 text-white w-full py-2 rounded hover:bg-black transition">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.156-1.11-1.465-1.11-1.465-.908-.62.069-.607.069-.607 1.003.07 1.53 1.03 1.53 1.03.892 1.53 2.341 1.088 2.91.833.091-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.748-1.026 2.748-1.026.545 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.847-2.339 4.695-4.566 4.944.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.748 0 .268.18 .58 .688 .481A10.02 10.02 0 0 0 22 12.017C22 6.484 17.523 2 12 2Z" clip-rule="evenodd"/></svg>
-            <span>Sign in with GitHub</span>
-          </a>
-        </div>
+			<div class="mt-auto pt-4 text-center">
+				<button id="languageToggle" class="text-sm text-blue-600 hover:text-blue-800">🌐 English</button>
+			</div>
+		</div>
 
-        <div class="mt-auto pt-4 text-center">
-          <button id="languageToggle" class="text-sm text-blue-600 hover:text-blue-800">🌐 English</button>
-        </div>
-      </div>
+		<div class="chat-section">
+			<button id="hamburgerFab" class="hamburger-fab" aria-label="Open menu">☰</button>
+			<div id="chatMessages"></div>
+			<form onsubmit="handleChatSubmit(event)" class="flex flex-col gap-2">
+				<div class="flex gap-2">
+					<textarea id="chatInput" placeholder="איך אפשר לעזור?" class="flex-grow resize-none" dir="rtl"
+						style="height: 3.5em; line-height: 1.4em;"></textarea>
+					<button type="submit" id="sendButton">שלח</button>
+				</div>
+				<div class="text-center">
+					<a href="#" id="toggleThinkingDisplay" class="text-blue-600 hover:text-blue-800"
+						onclick="toggleThinkingDisplay(event)">הצג חשיבה</a>
+				</div>
+			</form>
+		</div>
+	</div>
+</body>
 
-      <div class="chat-section">
-        <button id="hamburgerFab" class="hamburger-fab" aria-label="Open menu">☰</button>
-        <div id="chatMessages"></div>
-		<form onsubmit="handleChatSubmit(event)" class="flex flex-col gap-2">
-		  <div class="flex gap-2">
-		    <textarea
-		      id="chatInput"
-		      placeholder="איך אפשר לעזור?"
-		      class="flex-grow resize-none"
-		      dir="rtl"
-		      style="height: 3.5em; line-height: 1.4em;"
-		    ></textarea>
-		    <button type="submit" id="sendButton">שלח</button>
-		  </div>
-		  <div class="text-center">
-		    <a
-		      href="#"
-		      id="toggleThinkingDisplay"
-		      class="text-blue-600 hover:text-blue-800"
-		      onclick="toggleThinkingDisplay(event)"
-		      >הצג חשיבה</a
-		    >
-		  </div>
-		</form>
-      </div>
-    </div>
-  </body>
-  </html>
+</html>

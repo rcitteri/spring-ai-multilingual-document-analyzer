@@ -23,6 +23,7 @@ import java.util.Optional;
  * Service responsible for summarizing older chat messages to compress context
  * while preserving important information from the conversation history.
  * Includes intelligent caching to avoid re-summarizing the same message ranges.
+ * Uses ResilientLlmService for retry logic on LLM calls.
  */
 @Service
 public class MessageSummarizationService {
@@ -32,11 +33,14 @@ public class MessageSummarizationService {
 
     private final ChatClient chatClient;
     private final MessageSummaryCacheRepository cacheRepository;
+    private final ResilientLlmService resilientLlm;
 
     public MessageSummarizationService(ChatClient.Builder chatClientBuilder,
-                                       MessageSummaryCacheRepository cacheRepository) {
+            MessageSummaryCacheRepository cacheRepository,
+            ResilientLlmService resilientLlm) {
         this.chatClient = chatClientBuilder.build();
         this.cacheRepository = cacheRepository;
+        this.resilientLlm = resilientLlm;
     }
 
     /**
@@ -44,7 +48,7 @@ public class MessageSummarizationService {
      * Uses caching to avoid re-summarizing the same message ranges.
      *
      * @param conversationId The conversation ID (for cache lookup)
-     * @param messages The messages to summarize (should be chronological)
+     * @param messages       The messages to summarize (should be chronological)
      * @return A system message containing the summary
      */
     @Transactional
@@ -102,35 +106,36 @@ public class MessageSummarizationService {
                 Summary:
                 """, transcript.toString());
 
-        try {
-            String summary = chatClient
-                    .prompt()
-                    .user(summarizationPrompt)
-                    .call()
-                    .content();
+        // Use resilient LLM service with retry logic
+        String fallbackSummary = "Previous conversation covered " + messages.size() + " messages about various topics.";
 
-            logger.info("Generated summary: {}", summary.substring(0, Math.min(100, summary.length())) + "...");
+        String summary = resilientLlm.callWithRetry(
+                "MessageSummarization",
+                () -> chatClient.prompt().user(summarizationPrompt).call().content(),
+                fallbackSummary);
 
-            // Store in cache
-            int estimatedTokens = summary.length() / APPROXIMATE_TOKENS_PER_CHAR;
-            MessageSummaryCache newCache = new MessageSummaryCache(
-                    conversationId,
-                    messageRangeHash,
-                    summary,
-                    messages.size(),
-                    estimatedTokens
-            );
-            cacheRepository.save(newCache);
-
-            logger.info("Cached summary (hash: {}, tokens: ~{})",
-                    messageRangeHash.substring(0, 8), estimatedTokens);
-
-            return new SystemMessage("Previous conversation summary: " + summary);
-
-        } catch (Exception e) {
-            logger.error("Failed to generate summary, using fallback", e);
-            return new SystemMessage("Previous conversation covered " + messages.size() + " messages about various topics.");
+        // Check if we got the fallback (indicates failure)
+        if (summary.equals(fallbackSummary)) {
+            logger.warn("Summarization failed, using fallback message");
+            return new SystemMessage(fallbackSummary);
         }
+
+        logger.info("Generated summary: {}", summary.substring(0, Math.min(100, summary.length())) + "...");
+
+        // Store in cache
+        int estimatedTokens = summary.length() / APPROXIMATE_TOKENS_PER_CHAR;
+        MessageSummaryCache newCache = new MessageSummaryCache(
+                conversationId,
+                messageRangeHash,
+                summary,
+                messages.size(),
+                estimatedTokens);
+        cacheRepository.save(newCache);
+
+        logger.info("Cached summary (hash: {}, tokens: ~{})",
+                messageRangeHash.substring(0, 8), estimatedTokens);
+
+        return new SystemMessage("Previous conversation summary: " + summary);
     }
 
     /**
@@ -157,9 +162,10 @@ public class MessageSummarizationService {
 
     /**
      * Groups messages into batches for summarization.
-     * Recent messages are kept intact, older messages are grouped for summarization.
+     * Recent messages are kept intact, older messages are grouped for
+     * summarization.
      *
-     * @param messages All messages in chronological order
+     * @param messages           All messages in chronological order
      * @param recentMessageCount How many recent messages to keep unsummarized
      * @return List where older messages are grouped together
      */
