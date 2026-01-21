@@ -41,14 +41,26 @@ public class AdaptiveSemanticChunker {
     public static List<Document> chunkDocument(PDFData pdfData, String filename) {
         List<Document> chunks = new ArrayList<>();
 
-        // Combine all pages into full text
-        String fullText = String.join("\n\n", pdfData.getStringPages());
-        String language = pdfData.getLanguage();
-        int totalPages = pdfData.getStringPages().size();
-        int avgCharsPerPage = fullText.length() / Math.max(totalPages, 1);
+        // Build text with actual page number tracking
+        // Each position in the text maps to its actual PDF page number
+        List<PDFData.PageData> pages = pdfData.getPages();
+        StringBuilder fullTextBuilder = new StringBuilder();
+        List<int[]> pageRanges = new ArrayList<>(); // [startChar, endChar, actualPageNum]
 
-        logger.info("Chunking document '{}' ({}) with {} pages, {} chars (avg {} chars/page)",
-                filename, language, totalPages, fullText.length(), avgCharsPerPage);
+        int currentPos = 0;
+        for (PDFData.PageData page : pages) {
+            int startPos = currentPos;
+            fullTextBuilder.append(page.getContent()).append("\n\n");
+            currentPos = fullTextBuilder.length();
+            pageRanges.add(new int[] { startPos, currentPos, page.getActualPageNumber() });
+        }
+
+        String fullText = fullTextBuilder.toString();
+        String language = pdfData.getLanguage();
+        int totalPages = pages.size();
+
+        logger.info("Chunking document '{}' ({}) with {} pages, {} chars",
+                filename, language, totalPages, fullText.length());
 
         // Detect major sections in the document
         List<Section> sections = detectSections(fullText, language);
@@ -57,7 +69,7 @@ public class AdaptiveSemanticChunker {
         StringBuilder currentChunk = new StringBuilder();
         String previousOverlap = "";
         int chunkIndex = 0;
-        int currentCharPosition = 0;
+        int currentChunkStartPos = 0; // Start position in fullText for accumulated chunks
 
         for (Section section : sections) {
             int sectionTokens = estimateTokens(section.content);
@@ -76,11 +88,11 @@ public class AdaptiveSemanticChunker {
                 if (currentChunk.length() > 0) {
                     // Emit accumulated chunk first
                     String chunkContent = previousOverlap + currentChunk.toString();
-                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    int pageNum = lookupActualPage(currentChunkStartPos, pageRanges);
                     emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
-                    currentCharPosition += currentChunk.length();
                     previousOverlap = extractOverlap(currentChunk.toString(), OVERLAP_SIZE, language);
                     currentChunk = new StringBuilder();
+                    currentChunkStartPos = section.startPosition;
                 }
 
                 // Check if we should combine with previous overlap or make standalone
@@ -88,56 +100,59 @@ public class AdaptiveSemanticChunker {
                         estimateTokens(previousOverlap) + sectionTokens <= MAX_CHUNK_SIZE) {
                     // Include overlap and emit
                     String chunkContent = previousOverlap + section.content;
-                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    int pageNum = lookupActualPage(section.startPosition, pageRanges);
                     emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
-                    currentCharPosition += section.content.length();
                     previousOverlap = extractOverlap(section.content, OVERLAP_SIZE, language);
                 } else {
                     // Emit section as standalone chunk
-                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    int pageNum = lookupActualPage(section.startPosition, pageRanges);
                     emitChunk(chunks, section.content, filename, language, chunkIndex++, pageNum);
-                    currentCharPosition += section.content.length();
                     previousOverlap = extractOverlap(section.content, OVERLAP_SIZE, language);
                 }
+                currentChunkStartPos = section.startPosition + section.content.length();
 
             } else {
                 // Large section: split it further
                 if (currentChunk.length() > 0) {
                     // Emit accumulated chunk first
                     String chunkContent = previousOverlap + currentChunk.toString();
-                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    int pageNum = lookupActualPage(currentChunkStartPos, pageRanges);
                     emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
-                    currentCharPosition += currentChunk.length();
                     previousOverlap = extractOverlap(currentChunk.toString(), OVERLAP_SIZE, language);
                     currentChunk = new StringBuilder();
                 }
 
                 // Split large section into sub-chunks
                 List<String> subChunks = splitLargeSection(section.content, TARGET_CHUNK_SIZE, language);
+                int subChunkPos = section.startPosition;
                 for (String subChunk : subChunks) {
                     String chunkContent = previousOverlap + subChunk;
-                    int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                    int pageNum = lookupActualPage(subChunkPos, pageRanges);
                     emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
-                    currentCharPosition += subChunk.length();
+                    subChunkPos += subChunk.length();
                     previousOverlap = extractOverlap(subChunk, OVERLAP_SIZE, language);
                 }
+                currentChunkStartPos = section.startPosition + section.content.length();
             }
 
             // Check if current accumulated chunk is getting too large
             if (estimateTokens(currentChunk.toString()) >= TARGET_CHUNK_SIZE) {
                 String chunkContent = previousOverlap + currentChunk.toString();
-                int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+                int pageNum = lookupActualPage(currentChunkStartPos, pageRanges);
                 emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
-                currentCharPosition += currentChunk.length();
                 previousOverlap = extractOverlap(currentChunk.toString(), OVERLAP_SIZE, language);
                 currentChunk = new StringBuilder();
+                currentChunkStartPos = section.startPosition + section.content.length();
+            } else if (currentChunk.length() == 0) {
+                // Track start position for next accumulated chunk
+                currentChunkStartPos = section.startPosition;
             }
         }
 
         // Emit final accumulated chunk if any
         if (currentChunk.length() > MIN_CHUNK_SIZE / CHARS_PER_TOKEN) {
             String chunkContent = previousOverlap + currentChunk.toString();
-            int pageNum = Math.min(1 + (currentCharPosition / Math.max(avgCharsPerPage, 1)), totalPages);
+            int pageNum = lookupActualPage(currentChunkStartPos, pageRanges);
             emitChunk(chunks, chunkContent, filename, language, chunkIndex++, pageNum);
         }
 
@@ -150,6 +165,7 @@ public class AdaptiveSemanticChunker {
 
     /**
      * Detects major sections in the document based on structural markers.
+     * Tracks the start position of each section in the original text.
      */
     private static List<Section> detectSections(String text, String language) {
         List<Section> sections = new ArrayList<>();
@@ -164,35 +180,45 @@ public class AdaptiveSemanticChunker {
 
         StringBuilder currentSection = new StringBuilder();
         SectionType currentType = SectionType.PARAGRAPH;
+        int currentSectionStart = 0;
+        int textPosition = 0; // Track position in original text
 
         for (String part : parts) {
             String trimmed = part.trim();
-            if (trimmed.isEmpty())
+            if (trimmed.isEmpty()) {
+                textPosition += part.length();
                 continue;
+            }
 
             // Check if this looks like a header
             if (isHeader(trimmed, language)) {
                 // Emit previous section if substantial
                 if (currentSection.length() > MIN_CHUNK_SIZE / CHARS_PER_TOKEN) {
-                    sections.add(new Section(currentSection.toString().trim(), currentType));
+                    sections.add(new Section(currentSection.toString().trim(), currentType, currentSectionStart));
                     currentSection = new StringBuilder();
+                    currentSectionStart = textPosition;
                 }
                 currentType = SectionType.HEADER;
             }
 
+            if (currentSection.length() == 0) {
+                currentSectionStart = textPosition;
+            }
             currentSection.append(part);
+            textPosition += part.length();
 
             // If we've accumulated a substantial section, emit it
             if (estimateTokens(currentSection.toString()) >= TARGET_CHUNK_SIZE) {
-                sections.add(new Section(currentSection.toString().trim(), currentType));
+                sections.add(new Section(currentSection.toString().trim(), currentType, currentSectionStart));
                 currentSection = new StringBuilder();
+                currentSectionStart = textPosition;
                 currentType = SectionType.PARAGRAPH;
             }
         }
 
         // Add final section
         if (currentSection.length() > 0) {
-            sections.add(new Section(currentSection.toString().trim(), currentType));
+            sections.add(new Section(currentSection.toString().trim(), currentType, currentSectionStart));
         }
 
         return sections;
@@ -309,6 +335,30 @@ public class AdaptiveSemanticChunker {
     }
 
     /**
+     * Looks up the actual PDF page number for a given character position.
+     * 
+     * @param charPosition The character position in the combined text
+     * @param pageRanges   List of [startChar, endChar, actualPageNum] arrays
+     * @return The actual PDF page number, or 1 if not found
+     */
+    private static int lookupActualPage(int charPosition, List<int[]> pageRanges) {
+        for (int[] range : pageRanges) {
+            int startChar = range[0];
+            int endChar = range[1];
+            int actualPageNum = range[2];
+
+            if (charPosition >= startChar && charPosition < endChar) {
+                return actualPageNum;
+            }
+        }
+        // Fallback: return last page number or 1
+        if (!pageRanges.isEmpty()) {
+            return pageRanges.get(pageRanges.size() - 1)[2];
+        }
+        return 1;
+    }
+
+    /**
      * Sanitizes text content for embedding by removing problematic characters
      * that can cause embedding API failures (EOF errors).
      * 
@@ -379,10 +429,12 @@ public class AdaptiveSemanticChunker {
     private static class Section {
         String content;
         SectionType type;
+        int startPosition; // Position in original fullText
 
-        Section(String content, SectionType type) {
+        Section(String content, SectionType type, int startPosition) {
             this.content = content;
             this.type = type;
+            this.startPosition = startPosition;
         }
     }
 

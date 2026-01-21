@@ -1,6 +1,7 @@
 package com.odedia.analyzer.rtl;
 
 import com.odedia.analyzer.dto.PDFData;
+import com.odedia.analyzer.dto.PDFData.PageData;
 import com.odedia.analyzer.file.FileMultipartFile;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -63,11 +64,11 @@ public class HebrewEnglishPdfPerPageExtractor {
 					logger.debug("Detected Hebrew text, enabling position-based sorting");
 				}
 
-				List<String> pages = new ArrayList<>();
+				List<PageData> pages = new ArrayList<>();
 				int totalPages = document.getNumberOfPages();
 				logger.info("Extracting {} pages from PDF (language: {})", totalPages, language);
 
-				// Extract each page
+				// Extract each page, preserving actual PDF page numbers
 				for (int pageNum = 1; pageNum <= totalPages; pageNum++) {
 					stripper.setStartPage(pageNum);
 					stripper.setEndPage(pageNum);
@@ -79,12 +80,13 @@ public class HebrewEnglishPdfPerPageExtractor {
 					cleanedPage = com.odedia.analyzer.utils.TextCleaningUtils.cleanExtractedText(cleanedPage);
 
 					if (!cleanedPage.isEmpty()) {
-						pages.add(cleanedPage);
+						// Use PageData to preserve actual PDF page number
+						pages.add(new PageData(pageNum, cleanedPage));
 					}
 				}
 
 				logger.info("Extracted {} non-empty pages", pages.size());
-				return new PDFData(pages, language);
+				return new PDFData(pages, language, true);
 			}
 		} finally {
 			// Clean up temp file

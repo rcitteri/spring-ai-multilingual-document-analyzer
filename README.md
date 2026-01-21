@@ -13,6 +13,8 @@ This is a Spring AI demo app that lets you upload a collection of PDF and Word d
 - **Automatic Language Detection**: Right-to-left (RTL) documents like Hebrew PDFs are automatically detected and rendered with proper layout.  
 - **Word Documents**: Microsoft Word files are handled seamlessly regardless of text direction.
 - **Cross-Language Q&A**: Ask questions in **either language**. Responses are returned in the **current UI language**, independent of the source document's language.
+- **Accurate Page Citations**: Answers include source citations with **PDF page numbers**.
+- **Adaptive Semantic Chunking**: Documents are intelligently split at paragraph and section boundaries for optimal retrieval quality.
 - **Embedding Storage**: Uses **pgVector** (PostgreSQL) to store document embeddings.
 - **Conversation History**: Includes a conversation history for all previous chats. Each conversation has its own chat memory for context.
 - **Single Sign-On**: Supports Github OIDC, or Pivotal SSO while running on Tanzu Platform for Cloud Foundry. Documents and conversation history is managed on a per-user basis.
