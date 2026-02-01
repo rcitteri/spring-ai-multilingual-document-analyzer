@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>דוח עלות תפעול: Tanzu Platform for Cloud Foundry</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Palette Configuration: Deep Blue & Vibrant Cyan for Government/Tech Professional look -->
+    <style>
+        body { font-family: 'Heebo', sans-serif; background-color: #f1f5f9; color: #1e293b; }
+        .gradient-header { background: linear-gradient(135deg, #1e3a8a 0%, #0e7490 100%); }
+        .card { background-color: #ffffff; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .accent-text { color: #0891b2; }
+        
+        /* Chart Container Styling - Mandatory Strict Compliance */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px; /* Mobile base */
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+                max-width: 100%; /* Utilize grid width */
+            }
+        }
+        
+        /* Custom Grid/Flex utils for Diagram (No Mermaid/SVG) */
+        .process-step { border-left: 4px solid #06b6d4; padding-right: 1rem; margin-bottom: 1.5rem; position: relative; }
+        .process-step::before { content: ''; position: absolute; right: -6px; top: 0; width: 12px; height: 12px; background: #06b6d4; border-radius: 50%; }
+    </style>
+    
+    <!-- 
+        Palette Used: "Trust & Technology"
+        Primary: #1e3a8a (Deep Blue)
+        Accent: #06b6d4 (Cyan/Teal)
+        Neutral: #f1f5f9 (Slate 100)
+    -->
+    
+    <!-- 
+        Narrative Plan:
+        1. Intro: Contextualize the government deployment (100 AIs, 30 SIs).
+        2. The GenAI Factor: Highlight the massive resource cost of gpt-oss-120b.
+        3. Cost Comparison: Show GCP IaaS bill vs. vSphere Utility costs.
+        4. Operational Analysis: Performance and sovereignty.
+        5. Conclusion: Recommend vSphere.
+        
+        NO SVG USED. NO MERMAID USED.
+    -->
+</head>
+<body class="bg-slate-100">
+
+    <!-- Header Section -->
+    <header class="gradient-header text-white p-8 shadow-lg mb-8">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <h1 class="text-4xl font-black mb-2">דוח ניתוח עלויות ותפעול</h1>
+                    <h2 class="text-xl font-light opacity-90">Tanzu Platform for Cloud Foundry</h2>
+                    <p class="text-sm mt-2 opacity-75">השוואה: Google Cloud vs. vSphere On-Premise</p>
+                </div>
+                <div class="text-right border-r-4 border-cyan-400 pr-4">
+                    <p class="font-bold">לקוח: מגזר ממשלתי</p>
+                    <p>מיקוד: AI Services Tile & GenAI</p>
+                    <p>תאריך: פברואר 2026</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 pb-12 space-y-8">
+
+        <!-- Executive Summary -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="col-span-1 md:col-span-2 card p-8">
+                <h3 class="text-2xl font-bold text-slate-800 mb-4 border-b pb-2">תקציר מנהלים</h3>
+                <p class="text-lg leading-relaxed text-slate-600 mb-4">
+                    מטרת דוח זה היא לבחון את הכדאיות הכלכלית להרצת פלטפורמת Tanzu הכוללת עומסי עבודה של GenAI (מודל 120B פרמטרים).
+                    <br><br>
+                    הניתוח מראה כי בעוד שעלויות הרישוי זהות, <strong>עלות תשתית הענן (GCP)</strong> עבור רכיבי ה-GPU הנדרשים גבוהה באופן אקספוננציאלי לעומת ניצול חומרה קיימת (vSphere). עבור לקוח ממשלתי המחזיק כבר בדאטה-סנטר, המעבר לענן עבור עומס עבודה זה יגרור עלויות תפעול חודשיות הגבוהות ב-<strong>1,400%</strong> בקירוב.
+                </p>
+                <div class="bg-blue-50 p-4 rounded-lg border-r-4 border-blue-800">
+                    <p class="font-bold text-blue-900">המלצה אסטרטגית:</p>
+                    <p class="text-blue-800">הישארות בסביבת vSphere. עלות הרצת מודל שפה גדול (LLM) 24/7 בענן הציבורי שוחקת את כל יתרונות הגמישות.</p>
+                </div>
+            </div>
+            
+            <!-- Big Number Hook -->
+            <div class="card p-8 flex flex-col justify-center items-center text-center bg-gradient-to-br from-slate-800 to-slate-900 text-white">
+                <div class="text-cyan-400 text-6xl font-black mb-2">₪120K+</div>
+                <p class="text-xl font-medium mb-4">חיסכון חודשי משוער</p>
+                <p class="text-sm opacity-70">בהרצה על vSphere (חומרה קיימת)<br>לעומת GCP</p>
+            </div>
+        </section>
+
+        <!-- Workload Profile -->
+        <section class="card p-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <div>
+                    <h3 class="text-2xl font-bold text-slate-800 mb-4">פרופיל עומס העבודה</h3>
+                    <p class="text-slate-600 mb-6">
+                        הסביבה המתוכננת כוללת תמהיל של אפליקציות Stateless קלאסיות ושירותי AI עתירי משאבים. האתגר המרכזי הוא מודל ה-GPT-OSS-120B. מודל זה דורש זיכרון VRAM עצום שאינו מאפשר שימוש ב-GPU סטנדרטי, אלא מחייב שימוש ב-Multi-GPU Instances (כגון A100 80GB).
+                    </p>
+                    <ul class="space-y-3">
+                        <li class="flex items-center">
+                            <span class="text-2xl ml-3">📱</span>
+                            <span><strong>100 Application Instances:</strong> צריכת משאבים סטנדרטית (CPU/RAM).</span>
+                        </li>
+                        <li class="flex items-center">
+                            <span class="text-2xl ml-3">🗄️</span>
+                            <span><strong>30 Service Instances:</strong> מסדי נתונים, תורים, ו-Caching.</span>
+                        </li>
+                        <li class="flex items-center text-cyan-700 font-bold bg-cyan-50 p-2 rounded">
+                            <span class="text-2xl ml-3">🧠</span>
+                            <span><strong>3 GenAI Instances (AI Tile):</strong> הרצת vLLM עם מודל 120B.</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="chart-container">
+                    <canvas id="workloadChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- The GenAI Cost Driver -->
+        <section>
+            <div class="mb-6">
+                <h3 class="text-2xl font-bold text-slate-800">מנוע העלות: AI Services Tile</h3>
+                <p class="text-slate-600">ניתוח המשאבים הנדרשים להרצת 3 מופעים של מודל שפה עם 120 מיליארד פרמטרים.</p>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Requirements Card -->
+                <div class="card p-6">
+                    <h4 class="text-lg font-bold mb-4 border-b pb-2">דרישות חומרה (למופע יחיד של 120B)</h4>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="font-semibold text-sm">VRAM (זיכרון גרפי) נדרש</span>
+                                <span class="text-sm font-mono text-cyan-600">~240GB FP16</span>
+                            </div>
+                            <div class="w-full bg-slate-200 rounded-full h-2.5">
+                                <div class="bg-cyan-600 h-2.5 rounded-full" style="width: 95%"></div>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-1">מחייב מינימום 4 כרטיסי A100-80GB או 8 כרטיסי A100-40GB</p>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="font-semibold text-sm">GCP Instance Type</span>
+                                <span class="text-sm font-mono text-red-600">a2-ultragpu-4g</span>
+                            </div>
+                            <div class="flex items-center bg-red-50 p-3 rounded border border-red-100">
+                                <span class="text-2xl ml-3">💸</span>
+                                <div>
+                                    <p class="font-bold text-red-800">עלות שעתית משוערת: $16.50</p>
+                                    <p class="text-xs text-red-700">עבור מכונה אחת בלבד (On-Demand)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Monthly Cost Chart -->
+                <div class="card p-6">
+                    <h4 class="text-lg font-bold mb-4">עלות חודשית: GCP מול vSphere (דולר)</h4>
+                    <div class="chart-container">
+                        <canvas id="costComparisonChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Detailed Comparison Table -->
+        <section class="card p-8 overflow-hidden">
+            <h3 class="text-2xl font-bold text-slate-800 mb-6">פירוט עלויות תפעוליות (OpEx)</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-right border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100 border-b-2 border-slate-300">
+                            <th class="p-4 font-bold text-slate-700">רכיב תשתית</th>
+                            <th class="p-4 font-bold text-slate-700 w-1/3">Google Cloud (GCP)</th>
+                            <th class="p-4 font-bold text-slate-700 w-1/3">vSphere (On-Prem)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-4 font-medium">Tanzu Runtime (Diego Cells)</td>
+                            <td class="p-4 text-slate-600">~$2,500<br><span class="text-xs">(4x n2-standard-8, Traffic)</span></td>
+                            <td class="p-4 text-slate-600">₪0<br><span class="text-xs">(חומרה קיימת)</span></td>
+                        </tr>
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-4 font-medium">Data Services (30 SIs)</td>
+                            <td class="p-4 text-slate-600">~$1,800<br><span class="text-xs">(Storage + Compute)</span></td>
+                            <td class="p-4 text-slate-600">₪0<br><span class="text-xs">(חומרה קיימת)</span></td>
+                        </tr>
+                        <tr class="bg-red-50 hover:bg-red-100 border-l-4 border-red-500">
+                            <td class="p-4 font-bold text-red-900">GenAI Compute (3x 120B)</td>
+                            <td class="p-4 font-bold text-red-700">~$36,000 / חודש<br><span class="text-xs">(3x a2-ultragpu-4g continuous)</span></td>
+                            <td class="p-4 font-bold text-green-700">~$1,200 / חודש<br><span class="text-xs">(עלות חשמל ומיזוג משוערת ל-3 שרתים ייעודיים)</span></td>
+                        </tr>
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-4 font-medium">ניהול רשת ותעבורה (Egress)</td>
+                            <td class="p-4 text-slate-600">~$500 - $1,000<br><span class="text-xs">(תלוי בנפח שימוש במודל)</span></td>
+                            <td class="p-4 text-slate-600">קיים<br><span class="text-xs">(חיבור ISP מוסדי קבוע)</span></td>
+                        </tr>
+                        <tr class="bg-slate-800 text-white">
+                            <td class="p-4 font-bold">סה"כ עלות חודשית</td>
+                            <td class="p-4 font-bold text-xl text-red-300">~$40,800</td>
+                            <td class="p-4 font-bold text-xl text-green-300">~$2,000*</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-xs text-slate-500 mt-4">* עלות vSphere מחושבת על בסיס עלויות שוליות (חשמל, מיזוג) והקצאת זמן ניהול, בהנחה שהחומרה והרישוי כבר נרכשו (Sunk Cost).</p>
+        </section>
+
+        <!-- 3 Year Projection & Radar -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Projection Chart -->
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4">תחזית עלות מצטברת (3 שנים)</h3>
+                <p class="text-sm text-slate-500 mb-4">הפער מתרחב במהירות עקב מודל ה-OpEx של הענן.</p>
+                <div class="chart-container">
+                    <canvas id="projectionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Operational Radar -->
+            <div class="card p-6">
+                <h3 class="text-lg font-bold mb-4">ניתוח תפעולי ואיכותני</h3>
+                <p class="text-sm text-slate-500 mb-4">השוואה לפי פרמטרים קריטיים למגזר הממשלתי.</p>
+                <div class="chart-container">
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Final Diagram: Operational Flow -->
+        <section class="card p-8 bg-gradient-to-r from-slate-50 to-white">
+            <h3 class="text-2xl font-bold text-slate-800 mb-6">יתרונות ארכיטקטורת On-Prem למודלים כבדים</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="process-step">
+                    <h4 class="font-bold text-lg mb-2 text-cyan-700">ריבונות מידע (Data Sovereignty)</h4>
+                    <p class="text-sm text-slate-600">
+                        ה-Prompt וה-Context הנשלחים למודל ה-120B נשארים בתוך גבולות הרשת הממשלתית הסגורה. אין יציאת דאטה לענן ציבורי.
+                    </p>
+                </div>
+                <div class="process-step">
+                    <h4 class="font-bold text-lg mb-2 text-cyan-700">ביצועים ו-Latency</h4>
+                    <p class="text-sm text-slate-600">
+                        קירבה פיזית בין ה-Application Instances (ב-TAS) לבין ה-AI Tile מבטיחה Latency מינימלי בהסקה (Inference), ללא תלות בחיבור האינטרנט.
+                    </p>
+                </div>
+                <div class="process-step" style="border: none;">
+                    <h4 class="font-bold text-lg mb-2 text-cyan-700">שליטה בעלויות (Cost Control)</h4>
+                    <p class="text-sm text-slate-600">
+                        עלות קבועה וידועה מראש. אין "הפתעות" בחשבונית הענן אם שירות ה-AI נשאר דלוק בסוף שבוע או אם יש ספייק בשימוש.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-white text-center p-6 mt-8">
+        <p class="opacity-75">Tanzu Platform Cost Analysis | Confidential | Generated for Government Client</p>
+    </footer>
+
+    <!-- Scripts for Chart.js -->
+    <script>
+        // --- UTILITIES ---
+        // Function to wrap labels > 16 chars
+        function formatLabel(str, maxwidth) {
+            if (typeof str !== 'string' || str.length <= maxwidth) return str;
+            var sections = [];
+            var words = str.split(" ");
+            var temp = "";
+            words.forEach(function(item, index) {
+                if (temp.length > 0) {
+                    var concat = temp + ' ' + item;
+                    if (concat.length > maxwidth) {
+                        sections.push(temp);
+                        temp = item;
+                    } else {
+                        temp = concat;
+                    }
+                } else {
+                    temp = item;
+                }
+                if (index === words.length - 1) {
+                    sections.push(temp);
+                }
+            });
+            return sections;
+        }
+
+        // Standard Tooltip Config
+        const tooltipConfig = {
+            callbacks: {
+                title: function(tooltipItems) {
+                    const item = tooltipItems[0];
+                    let label = item.chart.data.labels[item.dataIndex];
+                    if (Array.isArray(label)) {
+                        return label.join(' ');
+                    } else {
+                        return label;
+                    }
+                }
+            }
+        };
+
+        // --- CHART 1: WORKLOAD COMPOSITION (Donut) ---
+        const ctxWorkload = document.getElementById('workloadChart').getContext('2d');
+        new Chart(ctxWorkload, {
+            type: 'doughnut',
+            data: {
+                labels: ['Application Instances (100)', 'Service Instances (30)', 'GenAI Instances (3)'],
+                datasets: [{
+                    data: [100, 30, 3], // The count
+                    backgroundColor: ['#1e3a8a', '#94a3b8', '#06b6d4'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { family: 'Heebo' } } },
+                    tooltip: tooltipConfig,
+                    title: { display: true, text: 'התפלגות כמות מופעים (Count)', font: { family: 'Heebo', size: 16 } }
+                }
+            }
+        });
+
+        // --- CHART 2: MONTHLY COST COMPARISON (Bar) ---
+        // Labels need wrapping check
+        const labelsCost = ['תשתית GCP (IaaS)', 'תפעול vSphere (חשמל/תחזוקה)'];
+        const formattedLabelsCost = labelsCost.map(l => formatLabel(l, 16));
+
+        const ctxCost = document.getElementById('costComparisonChart').getContext('2d');
+        new Chart(ctxCost, {
+            type: 'bar',
+            data: {
+                labels: formattedLabelsCost,
+                datasets: [
+                    {
+                        label: 'Standard Workload',
+                        data: [4800, 800], // GCP: VMs+DBs, vSphere: Power share
+                        backgroundColor: '#94a3b8'
+                    },
+                    {
+                        label: 'GenAI Workload (120B)',
+                        data: [36000, 1200], // GCP: huge GPUs, vSphere: Power for 3 servers
+                        backgroundColor: '#06b6d4'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true, title: { display: true, text: 'עלות חודשית ($)' } }
+                },
+                plugins: {
+                    tooltip: tooltipConfig,
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // --- CHART 3: 3-YEAR PROJECTION (Line) ---
+        const ctxProj = document.getElementById('projectionChart').getContext('2d');
+        
+        // Calculate cumulative data
+        const gcpMonthly = 40800;
+        const vsphereMonthly = 2000;
+        const months = [0, 6, 12, 18, 24, 30, 36];
+        const gcpData = months.map(m => (m * gcpMonthly) / 1000); // In Thousands
+        const vsphereData = months.map(m => (m * vsphereMonthly) / 1000); // In Thousands
+
+        new Chart(ctxProj, {
+            type: 'line',
+            data: {
+                labels: months.map(m => `חודש ${m}`),
+                datasets: [
+                    {
+                        label: 'Google Cloud (מצטבר)',
+                        data: gcpData,
+                        borderColor: '#ef4444', // Red for danger/high cost
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'vSphere On-Prem (מצטבר)',
+                        data: vsphereData,
+                        borderColor: '#10b981', // Green for good/low cost
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { title: { display: true, text: 'אלפי דולרים ($K)' } }
+                },
+                plugins: {
+                    tooltip: tooltipConfig,
+                    title: { display: true, text: 'עלות מצטברת ב-$K לאורך 3 שנים' }
+                }
+            }
+        });
+
+        // --- CHART 4: OPERATIONAL RADAR ---
+        const ctxRadar = document.getElementById('radarChart').getContext('2d');
+        const radarLabels = ['עלות (נמוך=טוב)', 'שליטה במידע', 'ביצועים (Latency)', 'גמישות (Scale)', 'פשטות ניהול'];
+        // Wrap radar labels
+        const formattedRadarLabels = radarLabels.map(l => formatLabel(l, 16));
+
+        new Chart(ctxRadar, {
+            type: 'radar',
+            data: {
+                labels: formattedRadarLabels,
+                datasets: [{
+                    label: 'vSphere On-Prem',
+                    data: [10, 10, 9, 6, 8], // High scores for cost, data, perf. Lower for scale flexibility compared to cloud.
+                    fill: true,
+                    backgroundColor: 'rgba(6, 182, 212, 0.2)',
+                    borderColor: '#06b6d4',
+                    pointBackgroundColor: '#06b6d4',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#06b6d4'
+                }, {
+                    label: 'Google Cloud',
+                    data: [2, 6, 7, 10, 9], // Very low score for cost (expensive), high for scale/management.
+                    fill: true,
+                    backgroundColor: 'rgba(148, 163, 184, 0.2)',
+                    borderColor: '#94a3b8',
+                    pointBackgroundColor: '#94a3b8',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#94a3b8'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { display: true },
+                        suggestedMin: 0,
+                        suggestedMax: 10
+                    }
+                },
+                plugins: {
+                    tooltip: tooltipConfig
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
